@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/guyStrauss/pando/internal/compose"
 	"github.com/guyStrauss/pando/internal/config"
 	"github.com/guyStrauss/pando/internal/daemon"
 	"github.com/guyStrauss/pando/internal/engine"
@@ -68,6 +69,15 @@ func runDaemon(g *globalFlags, tcpAddr string) error {
 	execers := map[resource.Kind]engine.Execer{
 		resource.KindTask:  proc,
 		resource.KindLocal: proc,
+	}
+
+	// The compose backend needs Docker; without it, compose resources simply
+	// cannot run, but local/task stacks still work.
+	if cb, err := compose.New(logs, time.Now); err != nil {
+		fmt.Fprintf(os.Stderr, "compose disabled: %v\n", err)
+	} else {
+		execs[resource.KindCompose] = cb
+		execers[resource.KindCompose] = cb
 	}
 
 	eng := engine.New(engine.Config{
