@@ -61,6 +61,14 @@ type Sampler interface {
 	Sample(ctx context.Context, r *resource.Resource, env Env) (Usage, bool)
 }
 
+// Syncer is the optional capability for live-update file sync: copy a local path
+// into the running resource at containerPath. Host-process executors implement
+// it as a no-op (files already live on the host); the compose backend copies
+// into the container.
+type Syncer interface {
+	Sync(ctx context.Context, r *resource.Resource, env Env, localPath, containerPath string) error
+}
+
 // Env carries per-worktree resolved values (ports, project name, vars) handed
 // to executors at run time.
 type Env struct {

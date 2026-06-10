@@ -359,6 +359,87 @@ func TestEngineSharedMayNotDependOnLocal(t *testing.T) {
 	}
 }
 
+func TestTriggeredMatching(t *testing.T) {
+	root := "/work"
+	cases := []struct {
+		name     string
+		triggers []string
+		changed  []string
+		want     bool
+	}{
+		{"no trigger always fires", nil, []string{"/work/src/a.go"}, true},
+		{"basename match", []string{"requirements.txt"}, []string{"/work/requirements.txt"}, true},
+		{"recursive glob match", []string{"**/*.go"}, []string{"/work/src/pkg/a.go"}, true},
+		{"relative glob match", []string{"src/*.go"}, []string{"/work/src/a.go"}, true},
+		{"no match", []string{"*.py"}, []string{"/work/src/a.go"}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := triggered(c.triggers, c.changed, root); got != c.want {
+				t.Errorf("triggered(%v, %v) = %v, want %v", c.triggers, c.changed, got, c.want)
+			}
+		})
+	}
+}
+
+func TestRunLiveUpdateRunStepGatedByTrigger(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	r := &resource.Resource{
+		Name: "api", Kind: resource.KindLocal,
+		Local: &resource.LocalSpec{Cmd: "sleep 30"},
+		LiveUpdate: []resource.LiveUpdateStep{
+			{Run: "echo rebuilt", Trigger: []string{"*.go"}},
+		},
+	}
+	_ = eng.Register(wt(), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	defer eng.Down(ctx, "main")
+	as, _ := eng.lookup("main")
+	lr, _ := as.stack.Get("api")
+
+	// A non-matching change must NOT run the step.
+	_ = eng.runLiveUpdate(ctx, as, lr, []string{"/tmp/demo/readme.md"})
+	if countLines(logs, "main", "api", "rebuilt") != 0 {
+		t.Error("run step fired for a non-matching change")
+	}
+	// A matching change runs it.
+	_ = eng.runLiveUpdate(ctx, as, lr, []string{"/tmp/demo/main.go"})
+	if !waitForLine(logs, "main", "api", "rebuilt") {
+		t.Error("run step did not fire for a matching change")
+	}
+}
+
+func TestRunLiveUpdateRestartReruns(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	r := &resource.Resource{
+		Name: "api", Kind: resource.KindLocal,
+		Local:      &resource.LocalSpec{Cmd: "echo booting; sleep 30"},
+		LiveUpdate: []resource.LiveUpdateStep{{Restart: true}},
+	}
+	_ = eng.Register(wt(), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	defer eng.Down(ctx, "main")
+	if !waitForLine(logs, "main", "api", "booting") {
+		t.Fatal("api never booted")
+	}
+	before := countLines(logs, "main", "api", "booting")
+	as, _ := eng.lookup("main")
+	lr, _ := as.stack.Get("api")
+	if err := eng.runLiveUpdate(ctx, as, lr, []string{"/tmp/demo/main.go"}); err != nil {
+		t.Fatalf("live update: %v", err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if countLines(logs, "main", "api", "booting") > before {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Errorf("restart step did not re-run the process: still %d boots", before)
+}
+
 func TestEnginePortsDeterministicAndExposed(t *testing.T) {
 	eng, _, _ := testEngine(t)
 	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{

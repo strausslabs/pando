@@ -61,6 +61,7 @@ type activeStack struct {
 	mu             sync.Mutex
 	nextRun        map[string]time.Time // periodic resource -> next fire time
 	periodicCancel context.CancelFunc
+	live           *liveWatcher
 }
 
 func New(cfg Config) *Engine {
@@ -213,12 +214,14 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 	newAS.sched.Seed(seed)
 
 	as.stopPeriodic()
+	as.stopLiveUpdate()
 
 	e.mu.Lock()
 	e.stacks[slug] = newAS
 	e.mu.Unlock()
 
 	e.startPeriodic(newAS)
+	e.startLiveUpdate(newAS)
 
 	dirty := append(append([]string{}, diff.Added...), diff.Changed...)
 	if len(dirty) == 0 {
@@ -240,6 +243,7 @@ func (e *Engine) Deregister(ctx context.Context, slug string) error {
 		return nil
 	}
 	as.stopPeriodic()
+	as.stopLiveUpdate()
 	return as.sched.Down(ctx)
 }
 
@@ -320,6 +324,7 @@ func (e *Engine) Up(ctx context.Context, slug string, force bool) error {
 	}
 	err = as.sched.Up(ctx)
 	e.startPeriodic(as)
+	e.startLiveUpdate(as)
 	return err
 }
 
@@ -329,6 +334,7 @@ func (e *Engine) Down(ctx context.Context, slug string) error {
 		return err
 	}
 	as.stopPeriodic()
+	as.stopLiveUpdate()
 	return as.sched.Down(ctx)
 }
 
