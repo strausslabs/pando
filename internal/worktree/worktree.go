@@ -118,8 +118,10 @@ type PortAllocator struct {
 	Stride int
 }
 
+// Base 27000 reads as "tree" (2-7) and sits clear of common dev ports
+// (3000/5173/8000/8080). Each worktree gets a 100-port block within the range.
 func DefaultAllocator() PortAllocator {
-	return PortAllocator{Base: 20000, Range: 40000, Stride: 100}
+	return PortAllocator{Base: 27000, Range: 40000, Stride: 100}
 }
 
 // Allocate returns a map of service-name -> port for one worktree. Each

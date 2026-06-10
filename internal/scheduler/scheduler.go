@@ -273,6 +273,11 @@ func (s *Scheduler) Down(ctx context.Context) error {
 		if !ok {
 			continue
 		}
+		// Surface the transient so the UI shows healthy → shutting down → stopped
+		// rather than blinking straight to stopped.
+		if s.Phase(name).OK() {
+			s.set(name, PhaseShuttingDown, nil)
+		}
 		if err := exec.Stop(ctx, r, s.env); err != nil && firstErr == nil {
 			firstErr = err
 		}

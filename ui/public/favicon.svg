@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="15" fill="#07100e"/>
+  <!-- Pando: one shared root node, stems forking upward, roots fanning down. -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- roots -->
+    <path d="M32 40 L20 54 M32 40 L44 54 M32 40 L32 56" stroke="#2c443c" stroke-width="2.5"/>
+    <!-- stems -->
+    <path d="M32 40 L32 20" stroke="#2dd4bf" stroke-width="3.5"/>
+    <path d="M32 30 L21 18" stroke="#14b8a6" stroke-width="3"/>
+    <path d="M32 30 L43 18" stroke="#14b8a6" stroke-width="3"/>
+  </g>
+  <!-- root node -->
+  <circle cx="32" cy="40" r="3.5" fill="#e6efea"/>
+  <!-- living tips -->
+  <circle cx="32" cy="18" r="4.5" fill="#5eead4"/>
+  <circle cx="21" cy="17" r="3.5" fill="#4ade80"/>
+  <circle cx="43" cy="17" r="3.5" fill="#38bdf8"/>
+</svg>

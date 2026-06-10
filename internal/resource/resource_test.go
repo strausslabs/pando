@@ -1,6 +1,9 @@
 package resource
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestValidateRequiresName(t *testing.T) {
 	r := &Resource{Kind: KindTask, Task: &TaskSpec{Cmd: "x"}}
@@ -57,6 +60,62 @@ func TestDefaultRunPolicy(t *testing.T) {
 	explicit := &Resource{Name: "e", Kind: KindTask, Task: &TaskSpec{Cmd: "x"}, RunWhen: RunManual}
 	if explicit.DefaultRunPolicy() != RunManual {
 		t.Errorf("explicit policy must win, got %s", explicit.DefaultRunPolicy())
+	}
+}
+
+func TestIsPeriodic(t *testing.T) {
+	cases := []struct {
+		name  string
+		every time.Duration
+		want  bool
+	}{
+		{"zero is not periodic", 0, false},
+		{"positive is periodic", 30 * time.Minute, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := &Resource{Name: "r", Kind: KindTask, Task: &TaskSpec{Cmd: "x"}, Every: c.every}
+			if got := r.IsPeriodic(); got != c.want {
+				t.Errorf("IsPeriodic()=%v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+func TestDefaultRunPolicyPeriodicTaskIsAlways(t *testing.T) {
+	// A periodic task must re-run every tick, so its default must be RunAlways,
+	// not RunOnce — otherwise the first run would suppress all later ticks.
+	r := &Resource{Name: "sync", Kind: KindTask, Task: &TaskSpec{Cmd: "x"}, Every: 30 * time.Minute}
+	if got := r.DefaultRunPolicy(); got != RunAlways {
+		t.Errorf("periodic task default = %s, want %s", got, RunAlways)
+	}
+}
+
+func TestDefaultRunPolicyByKind(t *testing.T) {
+	cases := []struct {
+		name string
+		kind Kind
+		want RunPolicy
+	}{
+		{"non-periodic task is once", KindTask, RunOnce},
+		{"local is always", KindLocal, RunAlways},
+		{"compose is always", KindCompose, RunAlways},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := &Resource{Name: "r", Kind: c.kind}
+			if got := r.DefaultRunPolicy(); got != c.want {
+				t.Errorf("DefaultRunPolicy()=%s, want %s", got, c.want)
+			}
+		})
+	}
+}
+
+func TestDefaultRunPolicyExplicitOverridesPeriodic(t *testing.T) {
+	// An explicit RunWhen wins over every default, including the periodic rule.
+	r := &Resource{Name: "r", Kind: KindTask, Task: &TaskSpec{Cmd: "x"}, Every: 30 * time.Minute, RunWhen: RunManual}
+	if got := r.DefaultRunPolicy(); got != RunManual {
+		t.Errorf("explicit runWhen must win even when periodic, got %s", got)
 	}
 }
 

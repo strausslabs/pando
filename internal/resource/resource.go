@@ -97,6 +97,12 @@ type Resource struct {
 	Deps       []string         `json:"deps,omitempty"`
 	RunWhen    RunPolicy        `json:"runWhen,omitempty" validate:"omitempty,oneof=once always onChange manual"`
 	OnChange   []string         `json:"onChange,omitempty" validate:"required_if=RunWhen onChange"`
+	// Every > 0 re-runs the resource on this interval after its first run (e.g.
+	// a 30m sync task).
+	Every      time.Duration    `json:"every,omitempty" validate:"omitempty,min=0"`
+	// Preview marks a resource whose port serves a web UI; the dashboard renders
+	// a live iframe of it instead of its logs.
+	Preview    bool             `json:"preview,omitempty"`
 	Ready      Probe            `json:"ready,omitempty"`
 	Build      *Build           `json:"build,omitempty" validate:"omitempty"`
 	Compose    *ComposeSpec     `json:"compose,omitempty" validate:"omitempty"`
@@ -115,11 +121,18 @@ func (r *Resource) DefaultRunPolicy() RunPolicy {
 	if r.RunWhen != "" {
 		return r.RunWhen
 	}
+	// Periodic resources re-run every tick, so they must not record "ran once".
+	if r.IsPeriodic() {
+		return RunAlways
+	}
 	if r.Kind == KindTask {
 		return RunOnce
 	}
 	return RunAlways
 }
+
+// IsPeriodic reports whether the resource re-runs on a fixed interval.
+func (r *Resource) IsPeriodic() bool { return r.Every > 0 }
 
 func (r *Resource) allDeps() []string {
 	deps := append([]string(nil), r.Deps...)

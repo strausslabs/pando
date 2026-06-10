@@ -79,6 +79,10 @@ export interface Service {
   task?: TaskSpec;
   liveUpdate?: LiveUpdateStep[];
   hooks?: Hooks;
+  /** Periodic re-run interval; after the first run the task re-runs every interval. */
+  every?: Duration;
+  /** Render this resource's port as a live web preview (iframe) in the dashboard instead of logs. */
+  preview?: boolean;
 }
 
 export interface Stack {

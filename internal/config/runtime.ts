@@ -34,6 +34,8 @@ interface NormalizedResource {
   task?: Service["task"];
   liveUpdate?: LiveUpdateStep[];
   hooks?: Service["hooks"];
+  every?: number;
+  preview?: boolean;
 }
 
 interface NormalizedStack {
@@ -91,6 +93,8 @@ function normalizeResource(name: string, s: Service): NormalizedResource {
   if (s.task) res.task = s.task;
   if (s.liveUpdate) res.liveUpdate = s.liveUpdate;
   if (s.hooks) res.hooks = s.hooks;
+  if (s.every !== undefined) res.every = dur(s.every);
+  if (s.preview) res.preview = true;
   return res;
 }
 

@@ -12,6 +12,7 @@ export type Phase =
   | "skipped"
   | "blocked"
   | "stopped"
+  | "shuttingDown"
   | "liveUpdating"
   | "";
 
@@ -20,19 +21,26 @@ export interface ResourceStatus {
   kind: string;
   phase: Phase;
   ready: boolean;
+  preview?: boolean;
   port?: number;
   error?: string;
+  memBytes?: number;
+  cpuPercent?: number;
+  everySeconds?: number;
+  nextRunUnix?: number;
 }
 
 export interface WorktreeStatus {
   worktree: string;
   branch: string;
+  head: string;
   resources: ResourceStatus[];
 }
 
 export interface WorktreeInfo {
   path: string;
   branch: string;
+  head: string;
   slug: string;
   ports: Record<string, number>;
 }

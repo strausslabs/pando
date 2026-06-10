@@ -30,16 +30,31 @@ func daemonCmd(g *globalFlags) *cobra.Command {
 	var tcpAddr string
 	cmd := &cobra.Command{
 		Use:   "daemon",
-		Short: "Run the Pando daemon",
+		Short: "Run the Pando daemon (low-level; prefer `pando start`)",
 		RunE: func(c *cobra.Command, args []string) error {
-			return runDaemon(g, tcpAddr)
+			return runDaemon(g, tcpAddr, false)
 		},
 	}
 	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "127.0.0.1:7420", "loopback address for the web UI (empty to disable)")
 	return cmd
 }
 
-func runDaemon(g *globalFlags, tcpAddr string) error {
+// startCmd is the friendly entrypoint: run the daemon and automatically bring
+// every discovered worktree up, so a single `pando start` boots the grove.
+func startCmd(g *globalFlags) *cobra.Command {
+	var tcpAddr string
+	cmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start Pando: run the daemon and bring all worktrees up",
+		RunE: func(c *cobra.Command, args []string) error {
+			return runDaemon(g, tcpAddr, true)
+		},
+	}
+	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "127.0.0.1:7420", "loopback address for the web UI (empty to disable)")
+	return cmd
+}
+
+func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 	loader, err := config.NewLoader()
 	if err != nil {
 		return err
@@ -92,7 +107,13 @@ func runDaemon(g *globalFlags, tcpAddr string) error {
 	mgr := worktree.NewManager()
 	rec, err := watcher.NewReconciler(eng, loader, mgr, gitCommonDir(ctx), watcher.Options{
 		ConfigName: filepath.Base(g.config),
-		OnError:    func(err error) { fmt.Fprintf(os.Stderr, "reconcile: %v\n", err) },
+		AutoUp:     autoUp,
+		OnUp: func(upCtx context.Context, slug string) {
+			if err := eng.Up(upCtx, slug, false); err != nil {
+				fmt.Fprintf(os.Stderr, "auto-up %s: %v\n", slug, err)
+			}
+		},
+		OnError: func(err error) { fmt.Fprintf(os.Stderr, "reconcile: %v\n", err) },
 	})
 	if err != nil {
 		return err
@@ -114,10 +135,10 @@ func runDaemon(g *globalFlags, tcpAddr string) error {
 				fmt.Fprintf(os.Stderr, "ui server: %v\n", err)
 			}
 		}()
-		fmt.Printf("pando daemon: ui on http://%s\n", tcpAddr)
+		fmt.Printf("pando ready → http://%s\n", tcpAddr)
 	}
 
-	fmt.Printf("pando daemon: socket %s, watching for worktrees\n", g.socket)
+	fmt.Fprintf(os.Stderr, "watching for worktrees (socket %s)\n", g.socket)
 	return srv.Serve(ctx, g.socket)
 }
 

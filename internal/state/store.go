@@ -73,6 +73,19 @@ func (s *Store) SetInputs(worktree, resource, hash string) {
 	s.flush()
 }
 
+// Forget clears the run bookkeeping for a single resource so the next run is
+// not skipped. Used by an explicit restart/trigger of a run-once or onChange
+// resource: the user asked for it to run now, so its "already ran" / last-input
+// records must not suppress it.
+func (s *Store) Forget(worktree, resource string) {
+	k := key(worktree, resource)
+	s.mu.Lock()
+	delete(s.data.Ran, k)
+	delete(s.data.Inputs, k)
+	s.mu.Unlock()
+	s.flush()
+}
+
 // Reset clears bookkeeping for one worktree, forcing run-once tasks to run
 // again. Used by `pando up --force`.
 func (s *Store) Reset(worktree string) {

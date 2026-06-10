@@ -45,8 +45,13 @@ func New(capacity int) *Buffer {
 func (b *Buffer) Append(l Line) Line {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.seq++
-	l.Seq = b.seq
+	// A pre-assigned Seq (set by the Store from a process-global counter) is kept
+	// so sequence numbers are unique across every resource, not just within one
+	// buffer. Direct callers that leave Seq zero get the buffer-local counter.
+	if l.Seq == 0 {
+		b.seq++
+		l.Seq = b.seq
+	}
 	idx := (b.start + b.count) % b.cap
 	if b.count == b.cap {
 		b.start = (b.start + 1) % b.cap

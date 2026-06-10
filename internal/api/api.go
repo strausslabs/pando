@@ -23,6 +23,7 @@ type StackOps interface {
 type WorktreeInfo struct {
 	Path   string         `json:"path"`
 	Branch string         `json:"branch"`
+	Head   string         `json:"head"`
 	Slug   string         `json:"slug"`
 	Ports  map[string]int `json:"ports"`
 }
@@ -34,11 +35,24 @@ type ResourceStatus struct {
 	Ready bool   `json:"ready"`
 	Port  int    `json:"port,omitempty"`
 	Error string `json:"error,omitempty"`
+
+	// Live footprint, zero when not measured. MemBytes is RSS for host processes,
+	// container memory for compose resources.
+	MemBytes   uint64  `json:"memBytes,omitempty"`
+	CPUPercent float64 `json:"cpuPercent,omitempty"`
+
+	// Periodic schedule, zero when the resource is not periodic.
+	EverySeconds int64 `json:"everySeconds,omitempty"`
+	NextRunUnix  int64 `json:"nextRunUnix,omitempty"`
+
+	// Preview is true for web resources the dashboard renders as a live iframe.
+	Preview bool `json:"preview,omitempty"`
 }
 
 type WorktreeStatus struct {
 	Worktree  string           `json:"worktree"`
 	Branch    string           `json:"branch"`
+	Head      string           `json:"head"`
 	Resources []ResourceStatus `json:"resources"`
 }
 

@@ -3,6 +3,7 @@ package logbuf
 import (
 	"sort"
 	"sync"
+	"sync/atomic"
 )
 
 type EventKind string
@@ -27,6 +28,13 @@ type Store struct {
 	mu       sync.RWMutex
 	capacity int
 	buffers  map[string]*Buffer
+
+	// seq is a process-global, monotonic line counter shared across every
+	// per-resource buffer. The UI relies on Seq being a unique id (React keys,
+	// dedup, merge-sort of the all-resources view, reconnect cursor); a
+	// per-buffer counter would hand two resources the same low numbers and the
+	// merged view would collide their rows.
+	seq atomic.Uint64
 
 	subMu   sync.Mutex
 	subs    map[int]chan Event
@@ -67,6 +75,7 @@ func (s *Store) Append(worktree, resource string, stream Stream, text string, no
 	l.Resource = resource
 	l.Stream = stream
 	l.Text = text
+	l.Seq = s.seq.Add(1)
 	stored := s.buffer(worktree, resource).Append(l)
 	s.publish(Event{Kind: EventLog, Worktree: worktree, Resource: resource, Line: &stored})
 }

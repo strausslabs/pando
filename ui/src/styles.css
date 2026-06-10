@@ -4,27 +4,27 @@
    wither when failed. */
 
 :root {
-  --soil-900: #0c0f0d;
-  --soil-800: #12161300;
-  --soil-850: #101512;
-  --soil-700: #1a201c;
-  --soil-600: #232a25;
-  --bark: #2e3630;
-  --moss: #3a463d;
+  --soil-900: #07100e;
+  --soil-800: #0e1a17;
+  --soil-850: #0a1513;
+  --soil-700: #142420;
+  --soil-600: #1f322c;
+  --bark: #2c443c;
+  --moss: #3a5a50;
 
-  --bone: #ece6d8;
-  --bone-dim: #9aa39a;
-  --bone-faint: #5d665d;
+  --bone: #e6efea;
+  --bone-dim: #aebdb6;
+  --bone-faint: #6f8079;
 
-  --aspen: #e8b53d;
-  --aspen-bright: #ffd166;
-  --aspen-deep: #b8841f;
+  --aspen: #2dd4bf;
+  --aspen-bright: #5eead4;
+  --aspen-deep: #14b8a6;
 
-  --living: #6fcf7f;
-  --building: #f2c14e;
-  --pulse: #5aa9e6;
-  --wither: #e0654b;
-  --dormant: #4a544b;
+  --living: #4ade80;
+  --building: #fbbf24;
+  --pulse: #38bdf8;
+  --wither: #f87171;
+  --dormant: #3a4a45;
 
   --grain: 0.04;
 
@@ -48,8 +48,8 @@ body,
 
 body {
   background:
-    radial-gradient(120% 80% at 50% -10%, #16201a 0%, transparent 55%),
-    radial-gradient(90% 60% at 85% 110%, #15120a 0%, transparent 50%),
+    radial-gradient(120% 80% at 50% -10%, #0f2a25 0%, transparent 55%),
+    radial-gradient(90% 60% at 85% 110%, #0a1f1c 0%, transparent 50%),
     var(--soil-900);
   color: var(--bone);
   font-family: var(--font-mono);
@@ -98,15 +98,53 @@ body::after {
 
 .wordmark {
   font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 2rem;
-  letter-spacing: -0.03em;
+  font-weight: 600;
+  font-size: 1.7rem;
+  letter-spacing: -0.01em;
   color: var(--bone);
   font-optical-sizing: auto;
 }
-.wordmark .o {
-  color: var(--aspen);
-  font-style: italic;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* Masthead mark: the canopy sways from its base like wind through an aspen,
+   tips breathe so the lockup feels alive without distracting. */
+.mark {
+  overflow: visible;
+}
+.mark-canopy {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: sway 5.5s var(--ease-organic) infinite;
+}
+.mark-tips {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: sway 5.5s var(--ease-organic) infinite;
+}
+.mark-tips circle {
+  animation: tip-breathe 4s var(--ease-organic) infinite;
+}
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-2.2deg);
+  }
+  50% {
+    transform: rotate(2.2deg);
+  }
+}
+@keyframes tip-breathe {
+  0%,
+  100% {
+    opacity: 0.78;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .tagline {
@@ -139,71 +177,174 @@ body::after {
   animation: breathe 2.4s var(--ease-organic) infinite;
 }
 
-/* ── Grove layout ──────────────────────────────────────── */
-.grove {
+/* ── Layout: compact sidebar, logs dominate ────────────── */
+.layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 38%);
+  grid-template-columns: 340px minmax(0, 1fr);
   min-height: 0;
 }
 
-.stems {
-  overflow-y: auto;
-  padding: 1.75rem 2rem 3rem;
+/* ── Sidebar (worktree/resource tree) ──────────────────── */
+.sidebar {
+  border-right: 1px solid var(--soil-600);
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  min-height: 0;
+  background: linear-gradient(180deg, var(--soil-850), var(--soil-900));
 }
 
-/* Each worktree is a stem rising from the root line. */
-.stem {
+.search {
+  position: relative;
+  padding: 0.9rem 0.9rem 0.5rem;
+}
+.search-input,
+.logsearch-input {
+  width: 100%;
+  background: var(--soil-800);
   border: 1px solid var(--soil-600);
-  border-radius: 14px;
-  background: linear-gradient(180deg, var(--soil-700) 0%, var(--soil-850) 100%);
-  overflow: hidden;
-  animation: rise 0.7s var(--ease-organic) backwards;
-  box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.9);
+  border-radius: 8px;
+  color: var(--bone);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.5rem 1.8rem 0.5rem 0.7rem;
+  outline: none;
+  transition: border-color 0.2s var(--ease-organic);
+}
+.search-input:focus,
+.logsearch-input:focus {
+  border-color: var(--aspen-deep);
+}
+.search-input::placeholder,
+.logsearch-input::placeholder {
+  color: var(--bone-faint);
+}
+.search-clear,
+.logsearch-clear {
+  position: absolute;
+  right: 1.3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--bone-faint);
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.search-clear:hover,
+.logsearch-clear:hover {
+  color: var(--aspen);
 }
 
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0.9rem 0.6rem;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  border: 1px solid var(--soil-600);
+  border-radius: 8px;
+  color: var(--bone-dim);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-organic);
+}
+.toggle:hover {
+  border-color: var(--moss);
+}
+.toggle.on {
+  color: var(--bone);
+  border-color: var(--aspen-deep);
+}
+.toggle-box {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--moss);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 0.62rem;
+  color: var(--aspen);
+}
+.toggle.on .toggle-box {
+  border-color: var(--aspen);
+  background: rgba(45, 212, 191, 0.12);
+}
+.toggle-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--bone-faint);
+}
+
+.tree {
+  overflow-y: auto;
+  padding: 0.3rem 0.6rem 2rem;
+  flex: 1;
+  min-height: 0;
+}
+.tree-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--bone-faint);
+  font-style: italic;
+}
+
+.stem {
+  margin-bottom: 0.6rem;
+  animation: rise 0.5s var(--ease-organic) backwards;
+}
 .stem-head {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--soil-600);
-  background: rgba(232, 181, 61, 0.02);
+  gap: 0.5rem;
+  padding: 0.45rem 0.4rem;
 }
 .stem-branch {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 1.18rem;
+  font-size: 1rem;
   letter-spacing: -0.01em;
   color: var(--bone);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.1rem 0.2rem;
+  border-radius: 5px;
+}
+.stem-branch:hover {
+  color: var(--aspen-bright);
+}
+.stem-branch.active {
+  color: var(--aspen);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .stem-slug {
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
   color: var(--aspen-deep);
-  padding: 0.15rem 0.5rem;
-  border: 1px solid var(--soil-600);
-  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 .stem-actions {
   margin-left: auto;
   display: flex;
-  gap: 0.4rem;
+  gap: 0.3rem;
 }
 
 .btn {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--bone-dim);
   background: transparent;
   border: 1px solid var(--soil-600);
-  border-radius: 7px;
-  padding: 0.32rem 0.7rem;
+  border-radius: 6px;
+  padding: 0.22rem 0.5rem;
   cursor: pointer;
   transition: all 0.2s var(--ease-organic);
 }
@@ -211,7 +352,6 @@ body::after {
   color: var(--soil-900);
   background: var(--aspen);
   border-color: var(--aspen);
-  transform: translateY(-1px);
 }
 .btn.ghost:hover {
   color: var(--bone);
@@ -219,144 +359,308 @@ body::after {
   border-color: var(--moss);
 }
 
-/* Resource nodes — leaves on the stem. */
-.nodes {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.75rem;
-  padding: 1rem 1.25rem 1.25rem;
+.leaves {
+  list-style: none;
 }
-
-.node {
-  position: relative;
-  border: 1px solid var(--soil-600);
-  border-radius: 10px;
-  padding: 0.85rem 0.95rem;
-  background: var(--soil-800);
-  cursor: pointer;
-  transition: all 0.25s var(--ease-organic);
-  overflow: hidden;
-}
-.node:hover {
-  border-color: var(--moss);
-  transform: translateY(-2px);
-}
-.node.selected {
-  border-color: var(--aspen);
-  box-shadow: 0 0 0 1px var(--aspen-deep) inset;
-}
-
-/* Phase accent bar that grows along the node's left edge. */
-.node::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--phase, var(--dormant));
-}
-
-.node-top {
+.leaf-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.55rem;
+  padding: 0.34rem 0.5rem 0.34rem 0.6rem;
+  border-radius: 7px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.15s var(--ease-organic);
 }
-.node-name {
+.leaf-row:hover {
+  background: var(--soil-700);
+}
+.leaf-row.selected {
+  background: rgba(45, 212, 191, 0.07);
+  border-left-color: var(--aspen);
+}
+.leaf-name {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.02rem;
+  font-weight: 500;
+  font-size: 0.92rem;
   color: var(--bone);
 }
-.node-kind {
+.leaf-phase {
   font-size: 0.62rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--bone-faint);
-  margin-left: auto;
 }
-
-.node-meta {
+.leaf-port {
+  font-size: 0.68rem;
+  color: var(--aspen);
+  font-variant-numeric: tabular-nums;
+}
+/* Live footprint: revealed when the row is hovered or selected, so the resting
+   sidebar stays calm and the readings appear when a resource is inspected. The
+   container always holds the margin-left:auto anchor (phase sits to its right),
+   so the name column never shifts as readings fade in. */
+.leaf-vitals {
+  margin-left: auto;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.5rem;
-  font-size: 0.74rem;
-  color: var(--bone-dim);
+  opacity: 0;
+  transform: translateX(4px);
+  transition:
+    opacity 0.18s var(--ease-organic),
+    transform 0.18s var(--ease-organic);
+}
+.leaf-row:hover .leaf-vitals,
+.leaf-row.selected .leaf-vitals {
+  opacity: 1;
+  transform: none;
+}
+.leaf-cpu,
+.leaf-mem {
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.leaf-cpu {
+  color: var(--aspen-deep);
+}
+.leaf-mem {
+  color: var(--bone-faint);
+}
+.leaf-every {
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  color: var(--aspen-deep);
+  background: rgba(20, 184, 166, 0.1);
+  border: 1px solid rgba(20, 184, 166, 0.25);
+  border-radius: 999px;
+  padding: 0.05rem 0.35rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.leaf-restart {
+  background: none;
+  border: none;
+  color: var(--bone-faint);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 0.2rem;
+  opacity: 0;
+  transition: all 0.15s;
+}
+.leaf-row:hover .leaf-restart {
+  opacity: 1;
+}
+.leaf-restart:hover {
+  color: var(--aspen);
+  transform: rotate(90deg);
 }
 .glyph {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--phase, var(--dormant));
   flex-shrink: 0;
 }
-.node[data-state="healthy"] .glyph,
-.node[data-state="running"] .glyph,
-.node[data-state="done"] .glyph {
+.leaf-row[data-state="healthy"] .glyph,
+.leaf-row[data-state="running"] .glyph {
   animation: breathe 2.8s var(--ease-organic) infinite;
 }
-.node[data-state="starting"] .glyph,
-.node[data-state="liveUpdating"] .glyph {
+.leaf-row[data-state="starting"] .glyph,
+.leaf-row[data-state="liveUpdating"] .glyph {
   animation: pulse 0.9s ease-in-out infinite;
 }
-.node[data-state="failed"] {
-  border-color: rgba(224, 101, 75, 0.35);
+/* Shutting down: a slower, fading pulse — the stem is winding down, not waking. */
+.leaf-row[data-state="shuttingDown"] .glyph {
+  animation: fade-pulse 1.4s ease-in-out infinite;
+}
+@keyframes fade-pulse {
+  0%,
+  100% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
 }
 
-.node-port {
-  margin-left: auto;
-  font-size: 0.72rem;
-  color: var(--aspen);
-  font-weight: 500;
-}
-.node-err {
-  margin-top: 0.5rem;
-  font-size: 0.7rem;
-  color: var(--wither);
-  line-height: 1.35;
-  max-height: 2.7em;
-  overflow: hidden;
-}
-
-/* ── Log canopy ────────────────────────────────────────── */
+/* ── Canopy: logs, the main event ──────────────────────── */
 .canopy {
-  border-left: 1px solid var(--soil-600);
   display: grid;
   grid-template-rows: auto 1fr;
   min-height: 0;
-  background: linear-gradient(180deg, var(--soil-850), var(--soil-900));
+  background:
+    radial-gradient(80% 50% at 50% 0%, rgba(45, 212, 191, 0.03), transparent 60%),
+    var(--soil-900);
 }
 .canopy-head {
-  padding: 1.1rem 1.5rem;
+  padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--soil-600);
   display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
+  align-items: center;
+  gap: 1rem;
+}
+.canopy-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
 }
 .canopy-title {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 1.1rem;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
 }
 .canopy-sub {
+  font-size: 0.68rem;
+  color: var(--bone-faint);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.canopy-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.logsearch {
+  position: relative;
+  width: min(320px, 32vw);
+}
+.snap-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+  background: transparent;
+  border: 1px solid var(--soil-600);
+  border-radius: 7px;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-organic);
+}
+.snap-btn .snap-icon {
+  font-size: 0.9rem;
+}
+.snap-btn.on {
+  color: var(--soil-900);
+  background: var(--aspen);
+  border-color: var(--aspen);
+}
+.snap-btn.on .snap-icon {
+  animation: nudge 1.6s var(--ease-organic) infinite;
+}
+@keyframes nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+
+/* Segmented preview/logs toggle — mirrors the .snap-btn palette. */
+.view-toggle {
+  display: flex;
+  border: 1px solid var(--soil-600);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.view-toggle button {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+  background: transparent;
+  border: none;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-organic);
+}
+.view-toggle button + button {
+  border-left: 1px solid var(--soil-600);
+}
+.view-toggle button:hover {
+  color: var(--bone);
+}
+.view-toggle button.on {
+  color: var(--soil-900);
+  background: var(--aspen);
+}
+
+/* ── Preview: live iframe of a running web app ─────────── */
+.preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.preview-bar {
+  padding: 0.4rem 1.5rem;
+  border-bottom: 1px solid var(--soil-600);
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   color: var(--bone-faint);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+}
+.preview-bar a {
+  color: var(--aspen-deep);
+  text-decoration: none;
+  transition: color 0.2s var(--ease-organic);
+}
+.preview-bar a:hover {
+  color: var(--aspen);
+}
+.preview-open {
+  color: var(--bone-faint);
+  margin-left: 0.4rem;
+}
+.preview-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+  border-radius: 6px;
+}
+.preview-error {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  gap: 0.4rem;
+  color: var(--bone-faint);
+  font-style: italic;
+  text-align: center;
+  padding: 2rem;
+}
+.preview-error-url {
+  font-style: normal;
+  font-size: 0.72rem;
+  color: var(--aspen-deep);
 }
 
 .logstream {
   overflow-y: auto;
-  padding: 1rem 1.25rem 2rem;
+  padding: 0.9rem 1.5rem 2rem;
   font-size: 12.5px;
-  line-height: 1.65;
+  line-height: 1.6;
+}
+.log-empty {
+  color: var(--bone-faint);
+  font-style: italic;
+  padding: 2rem 0;
 }
 .logline {
   display: flex;
   gap: 0.75rem;
-  padding: 0.05rem 0;
-  animation: fadein 0.35s ease backwards;
+  padding: 0.04rem 0;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -365,15 +669,41 @@ body::after {
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
+.ln-res {
+  flex-shrink: 0;
+  color: var(--aspen-deep);
+  min-width: 6.5em;
+  font-weight: 500;
+}
 .logline .txt {
   color: var(--bone);
 }
 .logline.stderr .txt {
   color: var(--wither);
 }
-.logline.system .txt {
+.logline.system .txt,
+.logline.system .ln-json {
   color: var(--aspen);
   font-style: italic;
+}
+.ln-json {
+  margin: 0.15rem 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--soil-850);
+  border: 1px solid var(--soil-600);
+  border-left: 2px solid var(--pulse);
+  border-radius: 6px;
+  color: var(--bone);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+.hl {
+  background: var(--aspen);
+  color: var(--soil-900);
+  border-radius: 2px;
+  padding: 0 1px;
 }
 
 .empty {
@@ -387,9 +717,81 @@ body::after {
 .empty .leaf {
   font-family: var(--font-display);
   font-style: italic;
-  font-size: 1.3rem;
+  font-size: 1.4rem;
   color: var(--bone-dim);
   margin-bottom: 0.4rem;
+}
+
+/* ── Animated aspen ────────────────────────────────────── */
+.aspen {
+  margin-bottom: 1.5rem;
+  filter: drop-shadow(0 8px 24px rgba(45, 212, 191, 0.12));
+}
+
+/* Each grow path draws itself via stroke-dash. pathLength isn't set, so we use
+   a dash longer than any path and animate the offset to zero. */
+.aspen .grow {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: draw 0.9s var(--ease-organic) forwards;
+}
+.aspen .soil-line {
+  animation-duration: 0.6s;
+}
+.aspen .trunk {
+  animation-delay: 0.4s;
+}
+.aspen .b1 {
+  animation-delay: 1s;
+}
+.aspen .b2 {
+  animation-delay: 1.15s;
+}
+.aspen .b3 {
+  animation-delay: 1.3s;
+}
+.aspen .b4 {
+  animation-delay: 1.45s;
+}
+.aspen .b5 {
+  animation-delay: 1.6s;
+}
+.aspen .r1 {
+  animation-delay: 0.1s;
+}
+.aspen .r2 {
+  animation-delay: 0.2s;
+}
+.aspen .r3 {
+  animation-delay: 0.15s;
+}
+.aspen .root-node {
+  opacity: 0;
+  animation: leafin 0.4s var(--ease-organic) 0.5s forwards;
+}
+.aspen .leaf-dot {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation:
+    leafin 0.5s var(--ease-organic) forwards,
+    breathe 3s var(--ease-organic) infinite;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes leafin {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* ── Scrollbar ─────────────────────────────────────────── */
@@ -450,6 +852,115 @@ body::after {
     opacity: 1;
     transform: none;
   }
+}
+
+/* ── Keyboard hints, help button, modal ────────────────── */
+.kbd,
+.search-hint,
+.logsearch-hint {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--bone-dim);
+  background: var(--soil-700);
+  border: 1px solid var(--soil-600);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 0.1rem 0.35rem;
+  line-height: 1;
+}
+.search-hint,
+.logsearch-hint {
+  position: absolute;
+  right: 1.3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.help-btn {
+  margin-left: 1rem;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--soil-600);
+  background: transparent;
+  color: var(--bone-dim);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-organic);
+}
+.help-btn:hover {
+  color: var(--soil-900);
+  background: var(--aspen);
+  border-color: var(--aspen);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(6, 8, 7, 0.7);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  animation: fadein 0.2s ease;
+}
+.modal {
+  width: min(420px, 90vw);
+  background: linear-gradient(180deg, var(--soil-700), var(--soil-850));
+  border: 1px solid var(--moss);
+  border-radius: 16px;
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.9);
+  overflow: hidden;
+  animation: rise 0.3s var(--ease-organic);
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--soil-600);
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+.modal-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--bone-faint);
+  font-size: 1.4rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.modal-close:hover {
+  color: var(--aspen);
+}
+.shortcut-list {
+  list-style: none;
+  padding: 0.75rem 1.25rem;
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0;
+}
+.shortcut-label {
+  color: var(--bone);
+}
+.shortcut-keys {
+  margin-left: auto;
+  display: flex;
+  gap: 0.3rem;
+}
+.modal-foot {
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--soil-600);
+  color: var(--bone-faint);
+  font-size: 0.72rem;
+  font-style: italic;
 }
 
 @media (prefers-reduced-motion: reduce) {

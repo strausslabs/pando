@@ -27,8 +27,12 @@ func Execute(version string) error {
 	root.PersistentFlags().StringVar(&g.socket, "socket", daemon.DefaultSocketPath(), "daemon socket path")
 	root.PersistentFlags().StringVarP(&g.config, "config", "f", "pando.config.ts", "path to config file")
 	root.PersistentFlags().BoolVar(&g.json, "json", false, "emit machine-readable JSON (for scripts and agents)")
+	// The socket is an internal transport with a sane per-user default; hide it
+	// from help so `pando start` reads clean. Power users can still override it.
+	_ = root.PersistentFlags().MarkHidden("socket")
 
 	root.AddCommand(
+		startCmd(g),
 		daemonCmd(g),
 		upCmd(g),
 		downCmd(g),

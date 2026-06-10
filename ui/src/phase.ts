@@ -10,6 +10,7 @@ export function phaseColor(phase: Phase): string {
     case "starting":
     case "waiting":
       return "var(--pulse)";
+    case "shuttingDown":
     case "liveUpdating":
       return "var(--building)";
     case "failed":
@@ -26,5 +27,8 @@ export function phaseColor(phase: Phase): string {
 }
 
 export function phaseLabel(phase: Phase): string {
-  return phase === "" ? "idle" : phase;
+  if (phase === "") return "idle";
+  // Split camelCase ("shuttingDown" -> "shutting down", "liveUpdating" ->
+  // "live updating") so multi-word phases read naturally in the UI.
+  return phase.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 }

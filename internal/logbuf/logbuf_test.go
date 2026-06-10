@@ -193,3 +193,179 @@ func texts(lines []Line) []string {
 	}
 	return out
 }
+
+// TestStoreGlobalSeqUniqueAcrossResources is the whole point of moving the seq
+// counter to the Store: interleaving appends across two resources (in two
+// worktrees) must hand out globally unique Seq values so the merged
+// all-resources view does not collide rows. A per-buffer counter would give
+// both resources 1,2,3,...
+func TestStoreGlobalSeqUniqueAcrossResources(t *testing.T) {
+	s := NewStore(100)
+	mk := func() Line { return Line{Time: time.Unix(1, 0)} }
+
+	// Interleave across two resources and two worktrees on the SAME store.
+	s.Append("main", "api", Stdout, "a", mk)
+	s.Append("main", "web", Stdout, "b", mk)
+	s.Append("feat", "api", Stderr, "c", mk)
+	s.Append("main", "api", System, "d", mk)
+	s.Append("main", "web", Stdout, "e", mk)
+	s.Append("feat", "api", Stdout, "f", mk)
+
+	refs := []ResourceRef{
+		{Worktree: "main", Resource: "api"},
+		{Worktree: "main", Resource: "web"},
+		{Worktree: "feat", Resource: "api"},
+	}
+	seen := map[uint64]string{}
+	total := 0
+	for _, ref := range refs {
+		lines, err := s.Query(ref.Worktree, ref.Resource, Query{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, l := range lines {
+			total++
+			where := ref.Worktree + "/" + ref.Resource
+			if prev, ok := seen[l.Seq]; ok {
+				t.Errorf("seq %d reused across resources: %s and %s", l.Seq, prev, where)
+			}
+			seen[l.Seq] = where
+			if l.Seq == 0 {
+				t.Errorf("store should stamp a non-zero global seq, got 0 in %s", where)
+			}
+		}
+	}
+	if total != 6 {
+		t.Fatalf("expected 6 lines total across resources, got %d", total)
+	}
+	if len(seen) != 6 {
+		t.Errorf("expected 6 distinct global seqs, got %d: %v", len(seen), seen)
+	}
+}
+
+// TestStoreGlobalSeqMonotonicInAppendOrder asserts that each successive Append,
+// regardless of which resource it targets, gets a Seq strictly greater than the
+// previous one. The Store appends serially here, so ordering is deterministic.
+func TestStoreGlobalSeqMonotonicInAppendOrder(t *testing.T) {
+	s := NewStore(100)
+	mk := func() Line { return Line{Time: time.Unix(1, 0)} }
+
+	// Alternate resources so a per-buffer counter would visibly reset.
+	appends := []struct{ wt, res, text string }{
+		{"main", "api", "1"},
+		{"main", "web", "2"},
+		{"main", "api", "3"},
+		{"feat", "db", "4"},
+		{"main", "web", "5"},
+		{"feat", "db", "6"},
+		{"main", "api", "7"},
+	}
+	for _, a := range appends {
+		s.Append(a.wt, a.res, Stdout, a.text, mk)
+	}
+
+	// Reconstruct append order via the text we stored (which we wrote in order),
+	// then verify Seq strictly increases following that order.
+	type pair struct {
+		text string
+		seq  uint64
+	}
+	byText := map[string]uint64{}
+	for _, ref := range s.Resources() {
+		lines, _ := s.Query(ref.Worktree, ref.Resource, Query{})
+		for _, l := range lines {
+			byText[l.Text] = l.Seq
+		}
+	}
+	var prev uint64
+	for i, a := range appends {
+		seq := byText[a.text]
+		if i > 0 && seq <= prev {
+			t.Errorf("seq not strictly increasing in append order at %d: %d after %d", i, seq, prev)
+		}
+		prev = seq
+	}
+}
+
+// TestStoreGlobalSeqConcurrentNoDuplicates fires many concurrent appends across
+// a mix of resources and asserts that the multiset of stored Seqs has no
+// duplicates and that the total count matches the number of appends.
+func TestStoreGlobalSeqConcurrentNoDuplicates(t *testing.T) {
+	s := NewStore(100000)
+	mk := func() Line { return Line{Time: time.Unix(1, 0)} }
+
+	const goroutines = 16
+	const perG = 500
+	resources := []ResourceRef{
+		{"main", "api"},
+		{"main", "web"},
+		{"feat", "api"},
+		{"feat", "db"},
+	}
+
+	var wg sync.WaitGroup
+	for g := 0; g < goroutines; g++ {
+		g := g
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < perG; j++ {
+				ref := resources[(g+j)%len(resources)]
+				s.Append(ref.Worktree, ref.Resource, Stdout, "x", mk)
+			}
+		}()
+	}
+	wg.Wait()
+
+	want := goroutines * perG
+	seen := map[uint64]bool{}
+	total := 0
+	for _, ref := range resources {
+		lines, err := s.Query(ref.Worktree, ref.Resource, Query{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, l := range lines {
+			total++
+			if seen[l.Seq] {
+				t.Errorf("duplicate global seq %d under concurrency", l.Seq)
+			}
+			seen[l.Seq] = true
+		}
+	}
+	if total != want {
+		t.Errorf("expected %d total lines, got %d", want, total)
+	}
+	if len(seen) != want {
+		t.Errorf("expected %d unique global seqs, got %d", want, len(seen))
+	}
+}
+
+// TestBufferAppendPreservesPresetSeq documents the mechanism the Store relies on:
+// Buffer.Append keeps a pre-assigned non-zero Seq (so the Store's global counter
+// survives) and only falls back to the buffer-local counter when Seq==0.
+func TestBufferAppendPreservesPresetSeq(t *testing.T) {
+	b := New(10)
+
+	got := b.Append(Line{Seq: 42, Text: "preset"})
+	if got.Seq != 42 {
+		t.Errorf("pre-set seq must be preserved, got %d", got.Seq)
+	}
+
+	// A zero-seq append takes the buffer-local counter, independent of the
+	// preset value above.
+	got = b.Append(Line{Text: "auto"})
+	if got.Seq != 1 {
+		t.Errorf("zero-seq append should get buffer-local seq 1, got %d", got.Seq)
+	}
+
+	got = b.Append(Line{Seq: 7, Text: "preset2"})
+	if got.Seq != 7 {
+		t.Errorf("second pre-set seq must be preserved, got %d", got.Seq)
+	}
+
+	got = b.Append(Line{Text: "auto2"})
+	if got.Seq != 2 {
+		t.Errorf("buffer-local counter should advance independently to 2, got %d", got.Seq)
+	}
+}

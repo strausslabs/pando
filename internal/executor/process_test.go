@@ -189,3 +189,43 @@ func TestStopUntrackedIsNoop(t *testing.T) {
 		t.Errorf("stopping untracked process should be no-op, got %v", err)
 	}
 }
+
+func TestSampleRunningProcessReportsMemory(t *testing.T) {
+	e, _ := newTestEngine()
+	r := localRes("svc", "sleep 30")
+	env := scheduler.Env{Worktree: "main"}
+	if err := e.Start(context.Background(), r, env, &nopReporter{}); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Stop(context.Background(), r, env)
+
+	u, ok := e.Sample(context.Background(), r, env)
+	if !ok {
+		t.Fatal("expected a sample for a running process")
+	}
+	if u.MemBytes == 0 {
+		t.Error("running process should report non-zero RSS")
+	}
+}
+
+func TestSampleUntrackedReturnsFalse(t *testing.T) {
+	e, _ := newTestEngine()
+	if _, ok := e.Sample(context.Background(), localRes("ghost", "x"), scheduler.Env{Worktree: "main"}); ok {
+		t.Error("sampling a process that was never started should return ok=false")
+	}
+}
+
+func TestSampleAfterStopReturnsFalse(t *testing.T) {
+	e, _ := newTestEngine()
+	r := localRes("svc", "sleep 30")
+	env := scheduler.Env{Worktree: "main"}
+	if err := e.Start(context.Background(), r, env, &nopReporter{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Stop(context.Background(), r, env); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := e.Sample(context.Background(), r, env); ok {
+		t.Error("sampling after Stop should return ok=false")
+	}
+}

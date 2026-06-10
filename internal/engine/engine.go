@@ -26,6 +26,7 @@ type Execer interface {
 type RunStore interface {
 	scheduler.RunStore
 	Reset(worktree string)
+	Forget(worktree, resource string)
 }
 
 type Config struct {
@@ -55,6 +56,10 @@ type activeStack struct {
 	env    scheduler.Env
 	phases map[string]scheduler.Phase
 	errs   map[string]string
+
+	mu             sync.Mutex
+	nextRun        map[string]time.Time // periodic resource -> next fire time
+	periodicCancel context.CancelFunc
 }
 
 func New(cfg Config) *Engine {
@@ -81,12 +86,13 @@ func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
 	}
 
 	as := &activeStack{
-		info:   api.WorktreeInfo{Path: wt.Path, Branch: wt.Branch, Slug: wt.Slug, Ports: ports},
-		stack:  stack,
-		graph:  g,
-		env:    env,
-		phases: map[string]scheduler.Phase{},
-		errs:   map[string]string{},
+		info:    api.WorktreeInfo{Path: wt.Path, Branch: wt.Branch, Head: wt.Head, Slug: wt.Slug, Ports: ports},
+		stack:   stack,
+		graph:   g,
+		env:     env,
+		phases:  map[string]scheduler.Phase{},
+		errs:    map[string]string{},
+		nextRun: map[string]time.Time{},
 	}
 	as.sched = e.newScheduler(wt.Slug, g, env, as)
 
@@ -158,12 +164,13 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 	env.Ports = ports
 
 	newAS := &activeStack{
-		info:   api.WorktreeInfo{Path: info.Path, Branch: info.Branch, Slug: slug, Ports: ports},
-		stack:  next,
-		graph:  g,
-		env:    env,
-		phases: map[string]scheduler.Phase{},
-		errs:   map[string]string{},
+		info:    api.WorktreeInfo{Path: info.Path, Branch: info.Branch, Head: info.Head, Slug: slug, Ports: ports},
+		stack:   next,
+		graph:   g,
+		env:     env,
+		phases:  map[string]scheduler.Phase{},
+		errs:    map[string]string{},
+		nextRun: map[string]time.Time{},
 	}
 	newAS.sched = e.newScheduler(slug, g, env, newAS)
 
@@ -182,9 +189,13 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 	}
 	newAS.sched.Seed(seed)
 
+	as.stopPeriodic()
+
 	e.mu.Lock()
 	e.stacks[slug] = newAS
 	e.mu.Unlock()
+
+	e.startPeriodic(newAS)
 
 	dirty := append(append([]string{}, diff.Added...), diff.Changed...)
 	if len(dirty) == 0 {
@@ -205,6 +216,7 @@ func (e *Engine) Deregister(ctx context.Context, slug string) error {
 	if !ok {
 		return nil
 	}
+	as.stopPeriodic()
 	return as.sched.Down(ctx)
 }
 
@@ -276,7 +288,9 @@ func (e *Engine) Up(ctx context.Context, slug string, force bool) error {
 	if force {
 		e.cfg.Store.Reset(slug)
 	}
-	return as.sched.Up(ctx)
+	err = as.sched.Up(ctx)
+	e.startPeriodic(as)
+	return err
 }
 
 func (e *Engine) Down(ctx context.Context, slug string) error {
@@ -284,6 +298,7 @@ func (e *Engine) Down(ctx context.Context, slug string) error {
 	if err != nil {
 		return err
 	}
+	as.stopPeriodic()
 	return as.sched.Down(ctx)
 }
 
@@ -294,6 +309,11 @@ func (e *Engine) Restart(ctx context.Context, slug, name string) error {
 	}
 	if _, ok := as.stack.Get(name); !ok {
 		return fmt.Errorf("resource %q not found in worktree %q", name, slug)
+	}
+	// Clear run-once/onChange bookkeeping so an explicit restart of an
+	// already-run resource is not skipped by shouldSkip.
+	if e.cfg.Store != nil {
+		e.cfg.Store.Forget(slug, name)
 	}
 	return as.sched.UpSubset(ctx, name)
 }
@@ -321,17 +341,36 @@ func (e *Engine) Status(ctx context.Context) ([]api.WorktreeStatus, error) {
 	defer e.mu.RUnlock()
 	out := make([]api.WorktreeStatus, 0, len(e.stacks))
 	for slug, as := range e.stacks {
-		ws := api.WorktreeStatus{Worktree: slug, Branch: as.info.Branch}
+		ws := api.WorktreeStatus{Worktree: slug, Branch: as.info.Branch, Head: as.info.Head}
 		for _, r := range as.stack.Resources {
 			phase := as.phases[r.Name]
-			ws.Resources = append(ws.Resources, api.ResourceStatus{
-				Name:  r.Name,
-				Kind:  string(r.Kind),
-				Phase: string(phase),
-				Ready: phase.OK(),
-				Port:  as.info.Ports[r.Name],
-				Error: as.errs[r.Name],
-			})
+			rs := api.ResourceStatus{
+				Name:    r.Name,
+				Kind:    string(r.Kind),
+				Phase:   string(phase),
+				Ready:   phase.OK(),
+				Port:    as.info.Ports[r.Name],
+				Error:   as.errs[r.Name],
+				Preview: r.Preview,
+			}
+			if phase.OK() {
+				if s, ok := e.cfg.Executors[r.Kind].(scheduler.Sampler); ok {
+					if u, ok := s.Sample(ctx, r, as.env); ok {
+						rs.MemBytes = u.MemBytes
+						rs.CPUPercent = u.CPUPercent
+					}
+				}
+			}
+			if r.IsPeriodic() {
+				rs.EverySeconds = int64(r.Every.Seconds())
+				as.mu.Lock()
+				t, ok := as.nextRun[r.Name]
+				as.mu.Unlock()
+				if ok {
+					rs.NextRunUnix = t.Unix()
+				}
+			}
+			ws.Resources = append(ws.Resources, rs)
 		}
 		out = append(out, ws)
 	}

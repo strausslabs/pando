@@ -115,6 +115,135 @@ func TestEngineForceRerunsOnceTask(t *testing.T) {
 	}
 }
 
+func TestEngineRestartRerunsSkippedOnceTask(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	_ = eng.Register(wt(), demoStack())
+	ctx := context.Background()
+	if err := eng.Up(ctx, "main", false); err != nil {
+		t.Fatal(err)
+	}
+	defer eng.Down(ctx, "main")
+	before := countLines(logs, "main", "setup", "setting-up")
+	if before == 0 {
+		t.Fatal("setup task never ran on first up")
+	}
+
+	// A second plain Up skips the run-once task; an explicit Restart must clear
+	// its bookkeeping and run it again.
+	if err := eng.Restart(ctx, "main", "setup"); err != nil {
+		t.Fatalf("restart: %v", err)
+	}
+	if !waitForLine(logs, "main", "setup", "setting-up") {
+		t.Fatal("no setup output after restart")
+	}
+	after := countLines(logs, "main", "setup", "setting-up")
+	if after <= before {
+		t.Errorf("restart did not re-run skipped once-task: %d -> %d", before, after)
+	}
+}
+
+func TestEngineRestartUnknownResourceErrors(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	_ = eng.Register(wt(), demoStack())
+	if err := eng.Restart(context.Background(), "main", "ghost"); err == nil {
+		t.Error("restart of unknown resource should error")
+	}
+}
+
+func periodicStack(every time.Duration) *resource.Stack {
+	return &resource.Stack{Name: "pando", Resources: []*resource.Resource{
+		{Name: "sync", Kind: resource.KindTask, Task: &resource.TaskSpec{Cmd: "echo synced"}, Every: every},
+	}}
+}
+
+func TestEnginePeriodicTaskReruns(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	_ = eng.Register(wt(), periodicStack(150*time.Millisecond))
+	ctx := context.Background()
+	if err := eng.Up(ctx, "main", false); err != nil {
+		t.Fatal(err)
+	}
+	defer eng.Down(ctx, "main")
+
+	// One run on Up plus at least two ticks within the budget.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if countLines(logs, "main", "sync", "synced") >= 3 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got := countLines(logs, "main", "sync", "synced"); got < 3 {
+		t.Errorf("periodic task should have run >=3 times, got %d", got)
+	}
+}
+
+func TestEngineDownStopsPeriodicLoop(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	_ = eng.Register(wt(), periodicStack(80*time.Millisecond))
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	if !waitForLine(logs, "main", "sync", "synced") {
+		t.Fatal("periodic task never ran")
+	}
+	eng.Down(ctx, "main")
+	settled := countLines(logs, "main", "sync", "synced")
+	// After Down the ticker must be cancelled: no further runs accrue.
+	time.Sleep(300 * time.Millisecond)
+	if got := countLines(logs, "main", "sync", "synced"); got != settled {
+		t.Errorf("periodic loop kept firing after Down: %d -> %d", settled, got)
+	}
+}
+
+func TestEngineStatusReportsPeriodicSchedule(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	_ = eng.Register(wt(), periodicStack(30*time.Minute))
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	defer eng.Down(ctx, "main")
+
+	st, _ := eng.Status(ctx)
+	var sync *api.ResourceStatus
+	for i := range st[0].Resources {
+		if st[0].Resources[i].Name == "sync" {
+			sync = &st[0].Resources[i]
+		}
+	}
+	if sync == nil {
+		t.Fatal("sync resource missing from status")
+	}
+	if sync.EverySeconds != int64((30 * time.Minute).Seconds()) {
+		t.Errorf("everySeconds wrong: %d", sync.EverySeconds)
+	}
+	if sync.NextRunUnix <= time.Now().Unix() {
+		t.Errorf("nextRunUnix should be in the future, got %d", sync.NextRunUnix)
+	}
+}
+
+func TestEngineStatusReportsPreview(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{
+		{Name: "web", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}, Preview: true},
+		{Name: "api", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}},
+	}}
+	_ = eng.Register(wt(), stack)
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	defer eng.Down(ctx, "main")
+
+	st, _ := eng.Status(ctx)
+	preview := map[string]bool{}
+	for _, r := range st[0].Resources {
+		preview[r.Name] = r.Preview
+	}
+	if !preview["web"] {
+		t.Error("web should be flagged preview")
+	}
+	if preview["api"] {
+		t.Error("api should not be flagged preview")
+	}
+}
+
 func TestEnginePortsDeterministicAndExposed(t *testing.T) {
 	eng, _, _ := testEngine(t)
 	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{

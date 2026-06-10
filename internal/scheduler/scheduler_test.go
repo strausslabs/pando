@@ -316,6 +316,137 @@ func TestWaitReadySkippedForTasks(t *testing.T) {
 	}
 }
 
+// TestDownEmitsShuttingDownBeforeStopped verifies the transient PhaseShuttingDown
+// is reported before PhaseStopped for a resource that was healthy, so the UI can
+// render healthy -> shuttingDown -> stopped rather than blinking to stopped.
+func TestDownEmitsShuttingDownBeforeStopped(t *testing.T) {
+	g := graph(t, svc("api"))
+	fe := newFakeExec()
+	var mu sync.Mutex
+	var seq []NodeState
+	s := New(g, Options{
+		Executors: map[resource.Kind]Executor{resource.KindLocal: fe},
+		OnState: func(ns NodeState) {
+			mu.Lock()
+			seq = append(seq, ns)
+			mu.Unlock()
+		},
+	})
+	if err := s.Up(context.Background()); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	if s.Phase("api") != PhaseHealthy {
+		t.Fatalf("api should be healthy before down, got %s", s.Phase("api"))
+	}
+	if err := s.Down(context.Background()); err != nil {
+		t.Fatalf("down: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	shutIdx, stopIdx, shutCount := -1, -1, 0
+	for i, ns := range seq {
+		if ns.Name != "api" {
+			continue
+		}
+		switch ns.Phase {
+		case PhaseShuttingDown:
+			shutCount++
+			if shutIdx == -1 {
+				shutIdx = i
+			}
+		case PhaseStopped:
+			stopIdx = i
+		}
+	}
+	if shutIdx == -1 {
+		t.Fatalf("no shuttingDown notification emitted for api: %v", phaseSeq(seq))
+	}
+	if stopIdx == -1 {
+		t.Fatalf("no stopped notification emitted for api: %v", phaseSeq(seq))
+	}
+	if shutIdx >= stopIdx {
+		t.Errorf("shuttingDown (%d) must come before stopped (%d): %v", shutIdx, stopIdx, phaseSeq(seq))
+	}
+	if shutCount != 1 {
+		t.Errorf("shuttingDown should be emitted exactly once for a healthy resource, got %d", shutCount)
+	}
+	if s.Phase("api") != PhaseStopped {
+		t.Errorf("final phase should be stopped, got %s", s.Phase("api"))
+	}
+}
+
+// TestDownNoShuttingDownForNotOK asserts the transient is only surfaced for
+// resources that were OK (healthy/running/done/skipped). A failed resource, and
+// the dependents it blocked, go straight to stopped without a shuttingDown.
+func TestDownNoShuttingDownForNotOK(t *testing.T) {
+	g := graph(t, svc("db"), task("migrate", "db"), svc("api", "migrate"), svc("frontend"))
+	fe := newFakeExec()
+	fe.failOn["migrate"] = true
+	var mu sync.Mutex
+	shut := map[string]int{}
+	stopped := map[string]int{}
+	s := New(g, Options{
+		Executors: map[resource.Kind]Executor{
+			resource.KindLocal: fe, resource.KindTask: fe,
+		},
+		OnState: func(ns NodeState) {
+			mu.Lock()
+			switch ns.Phase {
+			case PhaseShuttingDown:
+				shut[ns.Name]++
+			case PhaseStopped:
+				stopped[ns.Name]++
+			}
+			mu.Unlock()
+		},
+	})
+	_ = s.Up(context.Background())
+	// db healthy (OK); migrate failed (not OK); api blocked (not OK); frontend healthy (OK).
+	if s.Phase("migrate") != PhaseFailed {
+		t.Fatalf("migrate should be failed, got %s", s.Phase("migrate"))
+	}
+	if s.Phase("api") != PhaseBlocked {
+		t.Fatalf("api should be blocked, got %s", s.Phase("api"))
+	}
+
+	if err := s.Down(context.Background()); err != nil {
+		t.Fatalf("down: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	// OK resources get the transient.
+	for _, ok := range []string{"db", "frontend"} {
+		if shut[ok] != 1 {
+			t.Errorf("OK resource %q should emit shuttingDown once, got %d", ok, shut[ok])
+		}
+	}
+	// Not-OK resources go straight to stopped.
+	for _, notOK := range []string{"migrate", "api"} {
+		if shut[notOK] != 0 {
+			t.Errorf("not-OK resource %q must not emit shuttingDown, got %d", notOK, shut[notOK])
+		}
+	}
+	// Everything is driven to stopped regardless.
+	for _, n := range []string{"db", "migrate", "api", "frontend"} {
+		if stopped[n] != 1 {
+			t.Errorf("resource %q should be stopped once, got %d", n, stopped[n])
+		}
+		if s.Phase(n) != PhaseStopped {
+			t.Errorf("resource %q final phase should be stopped, got %s", n, s.Phase(n))
+		}
+	}
+}
+
+func phaseSeq(states []NodeState) []string {
+	out := make([]string, len(states))
+	for i, ns := range states {
+		out[i] = ns.Name + ":" + string(ns.Phase)
+	}
+	return out
+}
+
 func TestStateCallbackFires(t *testing.T) {
 	g := graph(t, svc("api"))
 	fe := newFakeExec()

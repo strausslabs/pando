@@ -19,6 +19,7 @@ const (
 	PhaseSkipped      Phase = "skipped"
 	PhaseBlocked      Phase = "blocked"
 	PhaseStopped      Phase = "stopped"
+	PhaseShuttingDown Phase = "shuttingDown"
 	PhaseLiveUpdating Phase = "liveUpdating"
 )
 
@@ -44,6 +45,20 @@ func (p Phase) OK() bool {
 type Executor interface {
 	Start(ctx context.Context, r *resource.Resource, env Env, rep Reporter) error
 	Stop(ctx context.Context, r *resource.Resource, env Env) error
+}
+
+// Usage is a single resource footprint sample. CPUPercent is a share of one
+// core, so it may exceed 100 for multi-threaded work.
+type Usage struct {
+	MemBytes   uint64
+	CPUPercent float64
+}
+
+// Sampler is the optional capability an executor implements to report a running
+// resource's footprint. The daemon type-asserts for it; ok is false when the
+// resource is not running or no sample is available.
+type Sampler interface {
+	Sample(ctx context.Context, r *resource.Resource, env Env) (Usage, bool)
 }
 
 // Env carries per-worktree resolved values (ports, project name, vars) handed

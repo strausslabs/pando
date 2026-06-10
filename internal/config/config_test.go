@@ -4,6 +4,7 @@ import (
 	"context"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/guyStrauss/pando/internal/resource"
 )
@@ -115,6 +116,39 @@ func TestLoadParsesLiveUpdate(t *testing.T) {
 	}
 	if !api.LiveUpdate[2].Restart {
 		t.Errorf("third step should be restart: %+v", api.LiveUpdate[2])
+	}
+}
+
+func TestLoadParsesEveryAndPreview(t *testing.T) {
+	l := loaderOrSkip(t)
+	stack, err := l.LoadFile(context.Background(), "testdata/periodic.config.ts")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sync, ok := stack.Get("sync")
+	if !ok {
+		t.Fatal("missing sync resource")
+	}
+	if sync.Every != 30*time.Minute {
+		t.Errorf("sync every = %v, want 30m", sync.Every)
+	}
+	if !sync.IsPeriodic() {
+		t.Error("sync should be periodic")
+	}
+	if sync.DefaultRunPolicy() != resource.RunAlways {
+		t.Errorf("periodic task policy = %q, want always", sync.DefaultRunPolicy())
+	}
+
+	web, ok := stack.Get("web")
+	if !ok {
+		t.Fatal("missing web resource")
+	}
+	if !web.Preview {
+		t.Error("web should be flagged preview")
+	}
+	if sync.Preview {
+		t.Error("sync should not be flagged preview")
 	}
 }
 
