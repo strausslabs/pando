@@ -163,6 +163,26 @@ func TestLocalReportsRunning(t *testing.T) {
 	}
 }
 
+func TestStopDoesNotReportFailure(t *testing.T) {
+	e, _ := newTestEngine()
+	r := localRes("svc", "sleep 30")
+	rep := &nopReporter{}
+	env := scheduler.Env{Worktree: "main"}
+	if err := e.Start(context.Background(), r, env, rep); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Stop(context.Background(), r, env); err != nil {
+		t.Fatal(err)
+	}
+	// Give the exit-watch goroutine a moment to (incorrectly) fire if buggy.
+	time.Sleep(100 * time.Millisecond)
+	for _, p := range rep.phases {
+		if p == scheduler.PhaseFailed {
+			t.Errorf("intentional stop must not report failed; phases=%v", rep.phases)
+		}
+	}
+}
+
 func TestStopUntrackedIsNoop(t *testing.T) {
 	e, _ := newTestEngine()
 	if err := e.Stop(context.Background(), localRes("ghost", "x"), scheduler.Env{Worktree: "main"}); err != nil {

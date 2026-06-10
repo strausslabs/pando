@@ -7,10 +7,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/guyStrauss/pando/internal/api"
 	"github.com/guyStrauss/pando/internal/interp"
 	"github.com/guyStrauss/pando/internal/logbuf"
 	"github.com/guyStrauss/pando/internal/resource"
@@ -87,9 +90,10 @@ type Engine struct {
 }
 
 type managed struct {
-	cmd    *exec.Cmd
-	cancel context.CancelFunc
-	done   chan struct{}
+	cmd      *exec.Cmd
+	cancel   context.CancelFunc
+	done     chan struct{}
+	stopping atomic.Bool
 }
 
 func NewEngine(sink Sink, clock Clock) *Engine {
@@ -171,7 +175,7 @@ func (e *Engine) startLocal(ctx context.Context, r *resource.Resource, env sched
 		e.mu.Lock()
 		delete(e.running, key(env.Worktree, r.Name))
 		e.mu.Unlock()
-		if err != nil && procCtx.Err() == nil {
+		if err != nil && !m.stopping.Load() {
 			e.system(env.Worktree, r.Name, "process exited unexpectedly: %v", err)
 			rep.Phase(scheduler.PhaseFailed)
 		}
@@ -186,6 +190,34 @@ func (e *Engine) Stop(ctx context.Context, r *resource.Resource, env scheduler.E
 	return nil
 }
 
+// Exec runs a one-shot command for the Exec API. For host-process resources
+// there is no container to enter, so the command runs in the same working
+// directory and environment the resource itself would use.
+func (e *Engine) Exec(ctx context.Context, worktree, name string, argv []string, env scheduler.Env) (api.ExecResult, error) {
+	if len(argv) == 0 {
+		return api.ExecResult{}, fmt.Errorf("exec: empty command")
+	}
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	envv := os.Environ()
+	for k, v := range env.Vars {
+		envv = append(envv, k+"="+v)
+	}
+	cmd.Env = envv
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	res := api.ExecResult{Stdout: stdout.String(), Stderr: stderr.String()}
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			res.ExitCode = ee.ExitCode()
+			return res, nil
+		}
+		return res, err
+	}
+	return res, nil
+}
+
 // stopOne signals the process group, then escalates to SIGKILL if it does not
 // exit within a grace period.
 func (e *Engine) stopOne(wt, name string) {
@@ -198,6 +230,9 @@ func (e *Engine) stopOne(wt, name string) {
 	if !ok {
 		return
 	}
+	// Mark before signaling so the exit-watch goroutine treats the resulting
+	// process death as intentional rather than a crash.
+	m.stopping.Store(true)
 	if m.cmd.Process != nil {
 		_ = syscall.Kill(-m.cmd.Process.Pid, syscall.SIGTERM)
 	}
