@@ -56,12 +56,32 @@ type ComposeSpec struct {
 	Image     string            `json:"image,omitempty"`
 	Ports     []string          `json:"ports,omitempty"`
 	Env       map[string]string `json:"env,omitempty"`
+	EnvFile   []string          `json:"envFile,omitempty"`
 	DependsOn []string          `json:"dependsOn,omitempty"`
 	Volumes   []string          `json:"volumes,omitempty"`
 	Command   []string          `json:"command,omitempty"`
 	// Memory is a hard container memory limit in bytes (the DSL converts "256m"
 	// and friends). Zero means unbounded.
-	Memory    int64             `json:"memory,omitempty" validate:"omitempty,min=0"`
+	Memory int64 `json:"memory,omitempty" validate:"omitempty,min=0"`
+	// CPUs caps CPU as a fraction of cores (1.5 = one and a half cores); the
+	// backend converts to NanoCPUs. Zero means uncapped.
+	CPUs float64 `json:"cpus,omitempty" validate:"omitempty,min=0"`
+	// PidsLimit caps the number of processes. Zero means unlimited.
+	PidsLimit int64 `json:"pidsLimit,omitempty" validate:"omitempty,min=0"`
+	// Restart is the container restart policy: "", "no", "on-failure",
+	// "always", or "unless-stopped".
+	Restart     string       `json:"restart,omitempty" validate:"omitempty,oneof=no on-failure always unless-stopped"`
+	Healthcheck *Healthcheck `json:"healthcheck,omitempty" validate:"omitempty"`
+}
+
+// Healthcheck is the Docker-native container healthcheck, distinct from Pando's
+// readyWhen probe. Test is the command (Docker CMD-SHELL form when one element,
+// CMD form when many).
+type Healthcheck struct {
+	Test     []string      `json:"test" validate:"required"`
+	Interval time.Duration `json:"interval,omitempty"`
+	Timeout  time.Duration `json:"timeout,omitempty"`
+	Retries  int           `json:"retries,omitempty"`
 }
 
 type LocalSpec struct {

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -59,12 +60,8 @@ type activeStack struct {
 
 	mu             sync.Mutex
 	nextRun        map[string]time.Time // periodic resource -> next fire time
-	peakMem        map[string]uint64    // resource -> peak observed RSS (bytes)
 	periodicCancel context.CancelFunc
 }
-
-// memHeadroom multiplies peak observed RSS into a suggested memory limit.
-const memHeadroom = 1.5
 
 func New(cfg Config) *Engine {
 	if cfg.Clock == nil {
@@ -97,7 +94,6 @@ func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
 		phases:  map[string]scheduler.Phase{},
 		errs:    map[string]string{},
 		nextRun: map[string]time.Time{},
-		peakMem: map[string]uint64{},
 	}
 	as.sched = e.newScheduler(wt.Slug, g, env, as)
 
@@ -176,7 +172,6 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 		phases:  map[string]scheduler.Phase{},
 		errs:    map[string]string{},
 		nextRun: map[string]time.Time{},
-		peakMem: map[string]uint64{},
 	}
 	newAS.sched = e.newScheduler(slug, g, env, newAS)
 
@@ -308,6 +303,21 @@ func (e *Engine) Down(ctx context.Context, slug string) error {
 	return as.sched.Down(ctx)
 }
 
+// Shutdown brings every registered stack down. Called on daemon exit so local
+// processes (which run in their own process groups and outlive the daemon
+// otherwise) are stopped and their ports freed, rather than orphaned.
+func (e *Engine) Shutdown(ctx context.Context) {
+	e.mu.RLock()
+	slugs := make([]string, 0, len(e.stacks))
+	for slug := range e.stacks {
+		slugs = append(slugs, slug)
+	}
+	e.mu.RUnlock()
+	for _, slug := range slugs {
+		_ = e.Down(ctx, slug)
+	}
+}
+
 func (e *Engine) Restart(ctx context.Context, slug, name string) error {
 	as, err := e.lookup(slug)
 	if err != nil {
@@ -332,12 +342,30 @@ func (e *Engine) Trigger(ctx context.Context, slug, name string) error {
 	return e.Restart(ctx, slug, name)
 }
 
+// sortedSlugs returns the registered worktree slugs ordered by branch name (the
+// label the UI shows), so worktrees list deterministically rather than in Go
+// map order. Slug breaks ties when two worktrees share a branch name.
+func (e *Engine) sortedSlugs() []string {
+	slugs := make([]string, 0, len(e.stacks))
+	for slug := range e.stacks {
+		slugs = append(slugs, slug)
+	}
+	sort.Slice(slugs, func(i, j int) bool {
+		bi, bj := e.stacks[slugs[i]].info.Branch, e.stacks[slugs[j]].info.Branch
+		if bi != bj {
+			return bi < bj
+		}
+		return slugs[i] < slugs[j]
+	})
+	return slugs
+}
+
 func (e *Engine) ListWorktrees(ctx context.Context) ([]api.WorktreeInfo, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	out := make([]api.WorktreeInfo, 0, len(e.stacks))
-	for _, as := range e.stacks {
-		out = append(out, as.info)
+	for _, slug := range e.sortedSlugs() {
+		out = append(out, e.stacks[slug].info)
 	}
 	return out, nil
 }
@@ -346,7 +374,8 @@ func (e *Engine) Status(ctx context.Context) ([]api.WorktreeStatus, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	out := make([]api.WorktreeStatus, 0, len(e.stacks))
-	for slug, as := range e.stacks {
+	for _, slug := range e.sortedSlugs() {
+		as := e.stacks[slug]
 		ws := api.WorktreeStatus{Worktree: slug, Branch: as.info.Branch, Head: as.info.Head}
 		for _, r := range as.stack.Resources {
 			phase := as.phases[r.Name]
@@ -364,19 +393,8 @@ func (e *Engine) Status(ctx context.Context) ([]api.WorktreeStatus, error) {
 					if u, ok := s.Sample(ctx, r, as.env); ok {
 						rs.MemBytes = u.MemBytes
 						rs.CPUPercent = u.CPUPercent
-						as.mu.Lock()
-						if u.MemBytes > as.peakMem[r.Name] {
-							as.peakMem[r.Name] = u.MemBytes
-						}
-						as.mu.Unlock()
 					}
 				}
-			}
-			as.mu.Lock()
-			peak := as.peakMem[r.Name]
-			as.mu.Unlock()
-			if peak > 0 {
-				rs.MemSuggestBytes = uint64(float64(peak) * memHeadroom)
 			}
 			if r.Compose != nil {
 				rs.MemLimitBytes = r.Compose.Memory

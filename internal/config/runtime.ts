@@ -3,6 +3,7 @@
 // strips them at transpile time; they drive authoring and the CI tsc check.
 
 import type {
+  ComposeSpec,
   Duration,
   LiveUpdateStep,
   ReadyProbe,
@@ -88,8 +89,7 @@ function normalizeResource(name: string, s: Service): NormalizedResource {
   }
   if (s.readyWhen) res.ready = normalizeProbe(s.readyWhen);
   if (s.build) res.build = s.build;
-  if (s.compose) res.compose = { ...s.compose };
-  if (res.compose && s.compose?.memory !== undefined) res.compose.memory = bytes(s.compose.memory);
+  if (s.compose) res.compose = normalizeCompose(s.compose);
   if (s.local) res.local = s.local;
   if (s.task) res.task = s.task;
   if (s.liveUpdate) res.liveUpdate = s.liveUpdate;
@@ -110,6 +110,27 @@ export function normalize(raw: unknown): NormalizedStack {
     resources.push(normalizeResource(name, services[name] || {}));
   }
   return { name: stack.name || "pando", resources };
+}
+
+// normalizeCompose emits a plain object whose shape matches the Go ComposeSpec
+// JSON: memory -> bytes, envFile -> string[], healthcheck durations -> ns.
+function normalizeCompose(c: ComposeSpec): Service["compose"] {
+  const out: Record<string, unknown> = { ...c };
+  if (c.memory !== undefined) out.memory = bytes(c.memory);
+  if (c.envFile !== undefined) {
+    out.envFile = Array.isArray(c.envFile) ? c.envFile : [c.envFile];
+  }
+  if (c.healthcheck) {
+    const h = c.healthcheck;
+    const nh: Record<string, unknown> = {
+      test: Array.isArray(h.test) ? h.test : [h.test],
+    };
+    if (h.interval !== undefined) nh.interval = dur(h.interval);
+    if (h.timeout !== undefined) nh.timeout = dur(h.timeout);
+    if (h.retries !== undefined) nh.retries = h.retries;
+    out.healthcheck = nh;
+  }
+  return out as Service["compose"];
 }
 
 function normalizeProbe(p: ReadyProbe): NormalizedProbe {

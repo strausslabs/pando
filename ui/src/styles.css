@@ -436,13 +436,6 @@ body::after {
   white-space: nowrap;
   color: var(--dormant);
 }
-.leaf-memhint {
-  font-size: 0.6rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  color: var(--building);
-}
 .leaf-every {
   font-size: 0.62rem;
   letter-spacing: 0.02em;

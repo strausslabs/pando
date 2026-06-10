@@ -28,6 +28,16 @@ export interface ComposeSpec {
   command?: string[];
   /** Hard container memory limit, e.g. "256m" / "1g", or raw bytes. */
   memory?: number | string;
+  /** Env file path(s), loaded before inline env. */
+  envFile?: string | string[];
+  /** CPU limit as a fraction of cores (1.5 = one and a half cores). */
+  cpus?: number;
+  /** Max number of processes. */
+  pidsLimit?: number;
+  /** Container restart policy. */
+  restart?: "no" | "on-failure" | "always" | "unless-stopped";
+  /** Docker-native container healthcheck, distinct from readyWhen. */
+  healthcheck?: { test: string | string[]; interval?: Duration; timeout?: Duration; retries?: number };
 }
 
 export interface LocalSpec {

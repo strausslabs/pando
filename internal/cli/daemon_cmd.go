@@ -139,7 +139,14 @@ func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "watching for worktrees (socket %s)\n", g.socket)
-	return srv.Serve(ctx, g.socket)
+	err = srv.Serve(ctx, g.socket)
+
+	// Tear down every stack so local processes are stopped and their ports
+	// freed; a fresh context because ctx is already cancelled on shutdown.
+	shutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	eng.Shutdown(shutCtx)
+	return err
 }
 
 // gitCommonDir returns the repository's shared git directory, under which

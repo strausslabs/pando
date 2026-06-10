@@ -26,7 +26,6 @@ export interface ResourceStatus {
   error?: string;
   memBytes?: number;
   memLimitBytes?: number;
-  memSuggestBytes?: number;
   cpuPercent?: number;
   everySeconds?: number;
   nextRunUnix?: number;

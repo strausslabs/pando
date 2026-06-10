@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -115,6 +117,14 @@ func containerConfig(r *resource.Resource, env scheduler.Env) (*container.Config
 	hostCfg := &container.HostConfig{}
 
 	if r.Compose != nil {
+		// Env files load first so inline Env (appended below) wins on conflict.
+		for _, f := range r.Compose.EnvFile {
+			vars, err := readEnvFile(expandHome(f))
+			if err != nil {
+				return nil, nil, err
+			}
+			cfg.Env = append(cfg.Env, vars...)
+		}
 		for _, k := range sortedKeys(r.Compose.Env) {
 			val, err := sc.String(r.Compose.Env[k])
 			if err != nil {
@@ -147,8 +157,53 @@ func containerConfig(r *resource.Resource, env scheduler.Env) (*container.Config
 			// soft floor: kernel reclaims down to this before the hard cap kicks in
 			hostCfg.Resources.MemoryReservation = r.Compose.Memory
 		}
+		if r.Compose.CPUs > 0 {
+			hostCfg.Resources.NanoCPUs = int64(r.Compose.CPUs * 1e9)
+		}
+		if r.Compose.PidsLimit > 0 {
+			pl := r.Compose.PidsLimit
+			hostCfg.Resources.PidsLimit = &pl
+		}
+		if r.Compose.Restart != "" {
+			hostCfg.RestartPolicy = container.RestartPolicy{Name: container.RestartPolicyMode(r.Compose.Restart)}
+		}
+		if hc := r.Compose.Healthcheck; hc != nil {
+			test := hc.Test
+			if len(test) == 1 {
+				test = append([]string{"CMD-SHELL"}, test...)
+			} else if len(test) > 1 {
+				test = append([]string{"CMD"}, test...)
+			}
+			cfg.Healthcheck = &container.HealthConfig{
+				Test:     test,
+				Interval: hc.Interval,
+				Timeout:  hc.Timeout,
+				Retries:  hc.Retries,
+			}
+		}
 	}
 	return cfg, hostCfg, nil
+}
+
+// readEnvFile parses an env file of KEY=VALUE lines, skipping blanks and
+// comments, returning "KEY=VALUE" entries suitable for container.Config.Env.
+func readEnvFile(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("env file %s: %w", path, err)
+	}
+	var out []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if _, _, ok := strings.Cut(line, "="); !ok {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out, nil
 }
 
 // ensureImage pulls the image if it is not already present locally. Pull
