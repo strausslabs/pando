@@ -1,0 +1,20 @@
+# Go
+/bin/
+/dist/
+*.test
+*.out
+coverage.txt
+
+# Pando runtime state
+.pando/
+
+# Node / Bun
+node_modules/
+ui/dist/
+*.log
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
