@@ -1,7 +1,6 @@
 package resource
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -40,11 +39,17 @@ type Probe struct {
 	Interval time.Duration `json:"interval,omitempty"`
 }
 
+type BuildSecret struct {
+	ID  string `json:"id" validate:"required"`
+	Src string `json:"src" validate:"required"`
+}
+
 type Build struct {
-	Context    string            `json:"context"`
+	Context    string            `json:"context" validate:"required"`
 	Dockerfile string            `json:"dockerfile,omitempty"`
 	Args       map[string]string `json:"args,omitempty"`
 	Target     string            `json:"target,omitempty"`
+	Secrets    []BuildSecret     `json:"secrets,omitempty" validate:"omitempty,dive"`
 }
 
 type ComposeSpec struct {
@@ -57,25 +62,25 @@ type ComposeSpec struct {
 }
 
 type LocalSpec struct {
-	Cmd   string            `json:"cmd"`
+	Cmd   string            `json:"cmd" validate:"required"`
 	Cwd   string            `json:"cwd,omitempty"`
 	Env   map[string]string `json:"env,omitempty"`
 	Watch []string          `json:"watch,omitempty"`
 }
 
 type TaskSpec struct {
-	Cmd string            `json:"cmd"`
+	Cmd string            `json:"cmd" validate:"required"`
 	Cwd string            `json:"cwd,omitempty"`
 	Env map[string]string `json:"env,omitempty"`
 }
 
 type SyncRule struct {
-	Local     string `json:"local"`
-	Container string `json:"container"`
+	Local     string `json:"local" validate:"required"`
+	Container string `json:"container" validate:"required"`
 }
 
 type LiveUpdateStep struct {
-	Sync    *SyncRule `json:"sync,omitempty"`
+	Sync    *SyncRule `json:"sync,omitempty" validate:"omitempty"`
 	Run     string    `json:"run,omitempty"`
 	Trigger []string  `json:"trigger,omitempty"`
 	Restart bool      `json:"restart,omitempty"`
@@ -87,49 +92,23 @@ type Hooks struct {
 }
 
 type Resource struct {
-	Name       string           `json:"name"`
-	Kind       Kind             `json:"kind"`
+	Name       string           `json:"name" validate:"required,hostname_rfc1123"`
+	Kind       Kind             `json:"kind" validate:"required,oneof=compose local task"`
 	Deps       []string         `json:"deps,omitempty"`
-	RunWhen    RunPolicy        `json:"runWhen,omitempty"`
-	OnChange   []string         `json:"onChange,omitempty"`
+	RunWhen    RunPolicy        `json:"runWhen,omitempty" validate:"omitempty,oneof=once always onChange manual"`
+	OnChange   []string         `json:"onChange,omitempty" validate:"required_if=RunWhen onChange"`
 	Ready      Probe            `json:"ready,omitempty"`
-	Build      *Build           `json:"build,omitempty"`
-	Compose    *ComposeSpec     `json:"compose,omitempty"`
-	Local      *LocalSpec       `json:"local,omitempty"`
-	Task       *TaskSpec        `json:"task,omitempty"`
-	LiveUpdate []LiveUpdateStep `json:"liveUpdate,omitempty"`
+	Build      *Build           `json:"build,omitempty" validate:"omitempty"`
+	Compose    *ComposeSpec     `json:"compose,omitempty" validate:"omitempty"`
+	Local      *LocalSpec       `json:"local,omitempty" validate:"omitempty"`
+	Task       *TaskSpec        `json:"task,omitempty" validate:"omitempty"`
+	LiveUpdate []LiveUpdateStep `json:"liveUpdate,omitempty" validate:"omitempty,dive"`
 	Hooks      Hooks            `json:"hooks,omitempty"`
 }
 
 type Stack struct {
-	Name      string      `json:"name"`
-	Resources []*Resource `json:"resources"`
-}
-
-func (r *Resource) Validate() error {
-	if r.Name == "" {
-		return fmt.Errorf("resource has empty name")
-	}
-	switch r.Kind {
-	case KindCompose:
-		if r.Compose == nil && r.Build == nil {
-			return fmt.Errorf("resource %q: compose kind needs compose or build spec", r.Name)
-		}
-	case KindLocal:
-		if r.Local == nil || r.Local.Cmd == "" {
-			return fmt.Errorf("resource %q: local kind needs local.cmd", r.Name)
-		}
-	case KindTask:
-		if r.Task == nil || r.Task.Cmd == "" {
-			return fmt.Errorf("resource %q: task kind needs task.cmd", r.Name)
-		}
-	default:
-		return fmt.Errorf("resource %q: unknown kind %q", r.Name, r.Kind)
-	}
-	if r.RunWhen == RunOnChange && len(r.OnChange) == 0 {
-		return fmt.Errorf("resource %q: runWhen=onChange needs onChange paths", r.Name)
-	}
-	return nil
+	Name      string      `json:"name" validate:"required"`
+	Resources []*Resource `json:"resources" validate:"dive"`
 }
 
 func (r *Resource) DefaultRunPolicy() RunPolicy {
@@ -140,30 +119,6 @@ func (r *Resource) DefaultRunPolicy() RunPolicy {
 		return RunOnce
 	}
 	return RunAlways
-}
-
-func (s *Stack) Validate() error {
-	if s.Name == "" {
-		return fmt.Errorf("stack has empty name")
-	}
-	seen := make(map[string]bool, len(s.Resources))
-	for _, r := range s.Resources {
-		if seen[r.Name] {
-			return fmt.Errorf("duplicate resource name %q", r.Name)
-		}
-		seen[r.Name] = true
-		if err := r.Validate(); err != nil {
-			return err
-		}
-	}
-	for _, r := range s.Resources {
-		for _, d := range r.allDeps() {
-			if !seen[d] {
-				return fmt.Errorf("resource %q depends on unknown resource %q", r.Name, d)
-			}
-		}
-	}
-	return nil
 }
 
 func (r *Resource) allDeps() []string {
