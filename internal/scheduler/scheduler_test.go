@@ -252,6 +252,70 @@ func TestUpSubsetOnlyTouchesDirty(t *testing.T) {
 	}
 }
 
+func TestWaitReadyGatesHealthy(t *testing.T) {
+	probed := &resource.Resource{
+		Name: "api", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "run"},
+		Ready: resource.Probe{Kind: resource.ProbeHTTPGet, Target: "x"},
+	}
+	g := graph(t, probed)
+	fe := newFakeExec()
+	called := false
+	s := New(g, Options{
+		Executors: map[resource.Kind]Executor{resource.KindLocal: fe},
+		WaitReady: func(ctx context.Context, r *resource.Resource, env Env) error {
+			called = true
+			return nil
+		},
+	})
+	if err := s.Up(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Error("WaitReady should be called for resource with a probe")
+	}
+	if s.Phase("api") != PhaseHealthy {
+		t.Errorf("api should be healthy after probe passes, got %s", s.Phase("api"))
+	}
+}
+
+func TestWaitReadyFailureFailsNode(t *testing.T) {
+	probed := &resource.Resource{
+		Name: "api", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "run"},
+		Ready: resource.Probe{Kind: resource.ProbeTCP, Target: "x"},
+	}
+	g := graph(t, probed)
+	fe := newFakeExec()
+	s := New(g, Options{
+		Executors: map[resource.Kind]Executor{resource.KindLocal: fe},
+		WaitReady: func(ctx context.Context, r *resource.Resource, env Env) error {
+			return context.DeadlineExceeded
+		},
+	})
+	if err := s.Up(context.Background()); err == nil {
+		t.Fatal("expected failure when probe never passes")
+	}
+	if s.Phase("api") != PhaseFailed {
+		t.Errorf("api should be failed when probe fails, got %s", s.Phase("api"))
+	}
+}
+
+func TestWaitReadySkippedForTasks(t *testing.T) {
+	g := graph(t, task("migrate"))
+	fe := newFakeExec()
+	called := false
+	s := New(g, Options{
+		Executors: map[resource.Kind]Executor{resource.KindTask: fe},
+		WaitReady: func(ctx context.Context, r *resource.Resource, env Env) error {
+			called = true
+			return nil
+		},
+	})
+	_ = s.Up(context.Background())
+	if called {
+		t.Error("WaitReady must not be called for task resources")
+	}
+}
+
 func TestStateCallbackFires(t *testing.T) {
 	g := graph(t, svc("api"))
 	fe := newFakeExec()

@@ -33,6 +33,7 @@ type Scheduler struct {
 	env       Env
 	onState   StateFunc
 	inputHash func(*resource.Resource) string
+	waitReady func(ctx context.Context, r *resource.Resource, env Env) error
 
 	mu     sync.Mutex
 	states map[string]Phase
@@ -46,6 +47,9 @@ type Options struct {
 	// InputHash computes a content hash for a resource's onChange inputs. May be
 	// nil, in which case onChange resources always run.
 	InputHash func(*resource.Resource) string
+	// WaitReady blocks until the resource's readiness probe passes. Called for
+	// long-running resources after Start returns; nil means skip probing.
+	WaitReady func(ctx context.Context, r *resource.Resource, env Env) error
 }
 
 func New(g *dag.Graph, opts Options) *Scheduler {
@@ -60,6 +64,7 @@ func New(g *dag.Graph, opts Options) *Scheduler {
 		env:       opts.Env,
 		onState:   onState,
 		inputHash: opts.InputHash,
+		waitReady: opts.WaitReady,
 		states:    make(map[string]Phase),
 	}
 }
@@ -185,6 +190,15 @@ func (s *Scheduler) startOne(ctx context.Context, name string) Phase {
 	if err := exec.Start(ctx, r, s.env, rep); err != nil {
 		s.set(name, PhaseFailed, err)
 		return PhaseFailed
+	}
+
+	// Long-running resources only count as healthy once their probe passes, so
+	// dependents do not start against a not-yet-listening service.
+	if r.Kind != resource.KindTask && s.waitReady != nil && r.Ready.Kind != resource.ProbeNone {
+		if err := s.waitReady(ctx, r, s.env); err != nil {
+			s.set(name, PhaseFailed, err)
+			return PhaseFailed
+		}
 	}
 
 	s.recordRun(r)

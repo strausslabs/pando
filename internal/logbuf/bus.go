@@ -75,6 +75,17 @@ func (s *Store) Query(worktree, resource string, q Query) ([]Line, error) {
 	return s.buffer(worktree, resource).Query(q)
 }
 
+// Text returns the plain text of all buffered lines for a resource, oldest
+// first. Satisfies the logMatch probe's querier.
+func (s *Store) Text(worktree, resource string) []string {
+	lines, _ := s.buffer(worktree, resource).Query(Query{})
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		out[i] = l.Text
+	}
+	return out
+}
+
 func (s *Store) PublishPhase(worktree, resource, phase string) {
 	s.publish(Event{Kind: EventPhase, Worktree: worktree, Resource: resource, Phase: phase})
 }
