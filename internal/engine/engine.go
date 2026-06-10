@@ -137,6 +137,13 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 	}
 	diff := resource.DiffStacks(old, next)
 
+	// Nothing changed: keep the running stack untouched. Swapping it would
+	// orphan in-flight executor goroutines that still hold the old activeStack,
+	// dropping their final phase updates (e.g. a task settling to done).
+	if len(diff.Added) == 0 && len(diff.Changed) == 0 && len(diff.Removed) == 0 {
+		return nil
+	}
+
 	// Stop resources that no longer exist, before swapping the graph.
 	for _, name := range diff.Removed {
 		if r, found := old.Get(name); found {

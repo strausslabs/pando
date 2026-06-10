@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
@@ -76,6 +77,13 @@ func (b *Backend) run(ctx context.Context, r *resource.Resource, env scheduler.E
 	if err != nil {
 		return err
 	}
+	// For pulled images (no local build), ensure the image exists before create
+	// so a cold cache does not fail the resource.
+	if r.Build == nil {
+		if err := b.ensureImage(ctx, env.Worktree, r.Name, cfg.Image); err != nil {
+			return err
+		}
+	}
 	name := containerName(env.Project, r.Name)
 	created, err := b.cli.ContainerCreate(ctx, cfg, hostCfg, nil, nil, name)
 	if err != nil {
@@ -135,6 +143,24 @@ func containerConfig(r *resource.Resource, env scheduler.Env) (*container.Config
 		hostCfg.PortBindings = bindings
 	}
 	return cfg, hostCfg, nil
+}
+
+// ensureImage pulls the image if it is not already present locally. Pull
+// progress is drained to the resource's log so a slow first pull is visible.
+func (b *Backend) ensureImage(ctx context.Context, worktree, res, ref string) error {
+	if _, _, err := b.cli.ImageInspectWithRaw(ctx, ref); err == nil {
+		return nil
+	}
+	b.sink.Append(worktree, res, logbuf.System, "pulling image "+ref, func() logbuf.Line {
+		return logbuf.Line{Time: b.clock()}
+	})
+	rc, err := b.cli.ImagePull(ctx, ref, image.PullOptions{})
+	if err != nil {
+		return fmt.Errorf("pull %s: %w", ref, err)
+	}
+	defer rc.Close()
+	_, _ = io.Copy(io.Discard, rc) // block until the pull completes
+	return nil
 }
 
 func (b *Backend) Stop(ctx context.Context, r *resource.Resource, env scheduler.Env) error {

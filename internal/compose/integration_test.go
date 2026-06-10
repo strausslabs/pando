@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -26,6 +27,8 @@ type nopReporter struct{}
 func (nopReporter) Phase(scheduler.Phase) {}
 func (nopReporter) Logf(string, ...any)   {}
 
+func testImage() string { return os.Getenv("PANDO_TEST_IMAGE") }
+
 func intEnv() scheduler.Env {
 	return scheduler.Env{Worktree: "itest", Project: "pando-itest", Ports: map[string]int{}, Vars: map[string]string{}}
 }
@@ -38,10 +41,16 @@ func TestComposeLifecycleReal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Pull from GHCR rather than Docker Hub so CI never trips Docker Hub's
+	// anonymous pull rate limit. Overridable for local runs.
+	image := "ghcr.io/linuxcontainers/alpine:3.20"
+	if env := testImage(); env != "" {
+		image = env
+	}
 	r := &resource.Resource{
 		Name: "ticker", Kind: resource.KindCompose,
 		Compose: &resource.ComposeSpec{
-			Image:   "alpine:3.20",
+			Image:   image,
 			Command: []string{"sh", "-c", "echo CONTAINER-UP; i=0; while true; do echo tick-$i; i=$((i+1)); sleep 1; done"},
 		},
 	}
@@ -49,7 +58,7 @@ func TestComposeLifecycleReal(t *testing.T) {
 	ctx := context.Background()
 
 	// Best-effort pull so the test does not fail on a cold cache.
-	_ = exec.Command("docker", "pull", "alpine:3.20").Run()
+	_ = exec.Command("docker", "pull", image).Run()
 
 	if err := b.Start(ctx, r, env, nopReporter{}); err != nil {
 		t.Fatalf("start: %v", err)
