@@ -41,6 +41,12 @@ type ResourceStatus struct {
 	MemBytes   uint64  `json:"memBytes,omitempty"`
 	CPUPercent float64 `json:"cpuPercent,omitempty"`
 
+	// MemLimitBytes is the declared hard memory limit (compose `memory`), zero
+	// when unbounded. MemSuggestBytes is peak observed RSS × headroom — a tuning
+	// hint surfaced to the user, never enforced automatically.
+	MemLimitBytes   int64  `json:"memLimitBytes,omitempty"`
+	MemSuggestBytes uint64 `json:"memSuggestBytes,omitempty"`
+
 	// Periodic schedule, zero when the resource is not periodic.
 	EverySeconds int64 `json:"everySeconds,omitempty"`
 	NextRunUnix  int64 `json:"nextRunUnix,omitempty"`

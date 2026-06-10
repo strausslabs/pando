@@ -141,6 +141,12 @@ func containerConfig(r *resource.Resource, env scheduler.Env) (*container.Config
 		}
 		cfg.ExposedPorts = exposed
 		hostCfg.PortBindings = bindings
+
+		if r.Compose.Memory > 0 {
+			hostCfg.Resources.Memory = r.Compose.Memory
+			// soft floor: kernel reclaims down to this before the hard cap kicks in
+			hostCfg.Resources.MemoryReservation = r.Compose.Memory
+		}
 	}
 	return cfg, hostCfg, nil
 }

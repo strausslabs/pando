@@ -150,6 +150,14 @@ func TestLoadParsesEveryAndPreview(t *testing.T) {
 	if sync.Preview {
 		t.Error("sync should not be flagged preview")
 	}
+
+	cache, ok := stack.Get("cache")
+	if !ok {
+		t.Fatal("missing cache resource")
+	}
+	if cache.Compose == nil || cache.Compose.Memory != 256<<20 {
+		t.Errorf("cache memory = %v, want 256m (%d bytes)", cache.Compose, 256<<20)
+	}
 }
 
 func TestLoadMissingFileErrors(t *testing.T) {

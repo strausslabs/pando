@@ -125,6 +125,37 @@ func TestContainerConfigUsesComposeImageWhenNoBuild(t *testing.T) {
 	}
 }
 
+func TestContainerConfigSetsMemoryLimit(t *testing.T) {
+	r := &resource.Resource{
+		Name: "api", Kind: resource.KindCompose,
+		Compose: &resource.ComposeSpec{Image: "postgres:16", Memory: 256 << 20},
+	}
+	_, hostCfg, err := containerConfig(r, env())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hostCfg.Resources.Memory != 256<<20 {
+		t.Errorf("memory limit = %d, want %d", hostCfg.Resources.Memory, 256<<20)
+	}
+	if hostCfg.Resources.MemoryReservation != 256<<20 {
+		t.Errorf("memory reservation = %d, want %d", hostCfg.Resources.MemoryReservation, 256<<20)
+	}
+}
+
+func TestContainerConfigNoMemoryLimitByDefault(t *testing.T) {
+	r := &resource.Resource{
+		Name: "api", Kind: resource.KindCompose,
+		Compose: &resource.ComposeSpec{Image: "postgres:16"},
+	}
+	_, hostCfg, err := containerConfig(r, env())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hostCfg.Resources.Memory != 0 {
+		t.Errorf("unbounded by default, got memory = %d", hostCfg.Resources.Memory)
+	}
+}
+
 func TestContainerConfigBadPortErrors(t *testing.T) {
 	r := &resource.Resource{
 		Name: "api", Kind: resource.KindCompose,

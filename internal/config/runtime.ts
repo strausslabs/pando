@@ -88,7 +88,8 @@ function normalizeResource(name: string, s: Service): NormalizedResource {
   }
   if (s.readyWhen) res.ready = normalizeProbe(s.readyWhen);
   if (s.build) res.build = s.build;
-  if (s.compose) res.compose = s.compose;
+  if (s.compose) res.compose = { ...s.compose };
+  if (res.compose && s.compose?.memory !== undefined) res.compose.memory = bytes(s.compose.memory);
   if (s.local) res.local = s.local;
   if (s.task) res.task = s.task;
   if (s.liveUpdate) res.liveUpdate = s.liveUpdate;
@@ -137,4 +138,25 @@ function dur(v: Duration | undefined): number {
   const n = parseFloat(m[1]);
   const unit: Record<string, number> = { ms: 1e6, s: 1e9, m: 60e9, h: 3600e9 };
   return Math.round(n * unit[m[2]]);
+}
+
+// Memory sizes accept a number (bytes, as Go expects) or a string like
+// "256m"/"1g"/"512k" which we convert to bytes.
+function bytes(v: number | string | undefined): number {
+  if (v === undefined || v === null) return 0;
+  if (typeof v === "number") return v;
+  const m = /^(\d+(?:\.\d+)?)\s*(b|k|kb|m|mb|g|gb)?$/i.exec(v.trim());
+  if (!m) throw new Error("bad memory size: " + v);
+  const n = parseFloat(m[1]);
+  const unit: Record<string, number> = {
+    b: 1,
+    k: 1024,
+    kb: 1024,
+    m: 1024 ** 2,
+    mb: 1024 ** 2,
+    g: 1024 ** 3,
+    gb: 1024 ** 3,
+  };
+  const factor = m[2] ? unit[m[2].toLowerCase()] : 1;
+  return Math.round(n * factor);
 }

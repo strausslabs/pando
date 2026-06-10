@@ -11,5 +11,8 @@ export default defineStack({
       local: { cmd: "bun run dev", cwd: "./web" },
       preview: true,
     },
+    cache: {
+      compose: { image: "redis:7", memory: "256m" },
+    },
   },
 });

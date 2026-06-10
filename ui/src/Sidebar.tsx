@@ -26,6 +26,20 @@ function formatCpu(pct: number): string {
   return pct < 10 ? `${pct.toFixed(1)}%` : `${pct.toFixed(0)}%`;
 }
 
+// Right-sizing hint vs the suggested limit (peak RSS × 1.5). Returns null when
+// the declared limit already looks reasonable, else a short nudge:
+//  - no limit set      -> "set ~X" (unbounded; propose one)
+//  - limit > 2× suggest -> "try ~X" (over-allocated)
+//  - limit < suggest    -> "try ~X" (too tight)
+function memHint(r: WorktreeStatus["resources"][number]): string | null {
+  const suggest = r.memSuggestBytes ?? 0;
+  if (suggest <= 0) return null;
+  const limit = r.memLimitBytes ?? 0;
+  if (limit <= 0) return `set ~${formatBytes(suggest)}`;
+  if (limit > suggest * 2 || limit < suggest) return `try ~${formatBytes(suggest)}`;
+  return null;
+}
+
 // Compact interval label: "30s" / "5m" / "2h" / "1d".
 function formatEvery(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -172,6 +186,7 @@ const StemGroup = memo(function StemGroup({
         {resources.map((r) => {
           const selected =
             target?.kind === "resource" && target.worktree === ws.worktree && target.resource === r.name;
+          const hint = memHint(r);
           return (
             <li
               key={r.name}
@@ -184,6 +199,14 @@ const StemGroup = memo(function StemGroup({
               <span className="leaf-vitals" title="live footprint">
                 {r.cpuPercent ? <span className="leaf-cpu">{formatCpu(r.cpuPercent)}</span> : null}
                 {r.memBytes ? <span className="leaf-mem">{formatBytes(r.memBytes)}</span> : null}
+                {r.memLimitBytes ? (
+                  <span className="leaf-memlimit">/ {formatBytes(r.memLimitBytes)}</span>
+                ) : null}
+                {hint ? (
+                  <span className="leaf-memhint" title="suggested limit = peak RSS × 1.5">
+                    ⚠ {hint}
+                  </span>
+                ) : null}
               </span>
               <span className="leaf-phase">{phaseLabel(r.phase)}</span>
               {r.everySeconds ? (

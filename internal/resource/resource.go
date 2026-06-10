@@ -59,6 +59,9 @@ type ComposeSpec struct {
 	DependsOn []string          `json:"dependsOn,omitempty"`
 	Volumes   []string          `json:"volumes,omitempty"`
 	Command   []string          `json:"command,omitempty"`
+	// Memory is a hard container memory limit in bytes (the DSL converts "256m"
+	// and friends). Zero means unbounded.
+	Memory    int64             `json:"memory,omitempty" validate:"omitempty,min=0"`
 }
 
 type LocalSpec struct {

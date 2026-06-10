@@ -59,8 +59,12 @@ type activeStack struct {
 
 	mu             sync.Mutex
 	nextRun        map[string]time.Time // periodic resource -> next fire time
+	peakMem        map[string]uint64    // resource -> peak observed RSS (bytes)
 	periodicCancel context.CancelFunc
 }
+
+// memHeadroom multiplies peak observed RSS into a suggested memory limit.
+const memHeadroom = 1.5
 
 func New(cfg Config) *Engine {
 	if cfg.Clock == nil {
@@ -93,6 +97,7 @@ func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
 		phases:  map[string]scheduler.Phase{},
 		errs:    map[string]string{},
 		nextRun: map[string]time.Time{},
+		peakMem: map[string]uint64{},
 	}
 	as.sched = e.newScheduler(wt.Slug, g, env, as)
 
@@ -171,6 +176,7 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 		phases:  map[string]scheduler.Phase{},
 		errs:    map[string]string{},
 		nextRun: map[string]time.Time{},
+		peakMem: map[string]uint64{},
 	}
 	newAS.sched = e.newScheduler(slug, g, env, newAS)
 
@@ -358,8 +364,22 @@ func (e *Engine) Status(ctx context.Context) ([]api.WorktreeStatus, error) {
 					if u, ok := s.Sample(ctx, r, as.env); ok {
 						rs.MemBytes = u.MemBytes
 						rs.CPUPercent = u.CPUPercent
+						as.mu.Lock()
+						if u.MemBytes > as.peakMem[r.Name] {
+							as.peakMem[r.Name] = u.MemBytes
+						}
+						as.mu.Unlock()
 					}
 				}
+			}
+			as.mu.Lock()
+			peak := as.peakMem[r.Name]
+			as.mu.Unlock()
+			if peak > 0 {
+				rs.MemSuggestBytes = uint64(float64(peak) * memHeadroom)
+			}
+			if r.Compose != nil {
+				rs.MemLimitBytes = r.Compose.Memory
 			}
 			if r.IsPeriodic() {
 				rs.EverySeconds = int64(r.Every.Seconds())

@@ -220,6 +220,51 @@ func TestEngineStatusReportsPeriodicSchedule(t *testing.T) {
 	}
 }
 
+func TestEngineStatusSuggestsMemoryFromPeak(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{
+		{Name: "svc", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}},
+	}}
+	_ = eng.Register(wt(), stack)
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	defer eng.Down(ctx, "main")
+
+	st, _ := eng.Status(ctx)
+	svc := st[0].Resources[0]
+	if svc.MemBytes == 0 {
+		t.Skip("sampler reported no RSS on this platform")
+	}
+	// Suggestion is peak observed RSS × 1.5 headroom.
+	want := uint64(float64(svc.MemBytes) * memHeadroom)
+	if svc.MemSuggestBytes != want {
+		t.Errorf("suggest = %d, want peak*1.5 = %d (mem=%d)", svc.MemSuggestBytes, want, svc.MemBytes)
+	}
+}
+
+func TestEngineStatusPeakMemIsMonotonic(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{
+		{Name: "svc", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}},
+	}}
+	_ = eng.Register(wt(), stack)
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	defer eng.Down(ctx, "main")
+
+	st1, _ := eng.Status(ctx)
+	if st1[0].Resources[0].MemBytes == 0 {
+		t.Skip("sampler reported no RSS on this platform")
+	}
+	peak1 := st1[0].Resources[0].MemSuggestBytes
+	st2, _ := eng.Status(ctx)
+	peak2 := st2[0].Resources[0].MemSuggestBytes
+	// The suggestion tracks a peak, so it never decreases across polls.
+	if peak2 < peak1 {
+		t.Errorf("suggestion (peak-based) decreased: %d -> %d", peak1, peak2)
+	}
+}
+
 func TestEngineStatusReportsPreview(t *testing.T) {
 	eng, _, _ := testEngine(t)
 	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{

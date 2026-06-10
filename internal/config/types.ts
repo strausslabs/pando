@@ -26,6 +26,8 @@ export interface ComposeSpec {
   dependsOn?: string[];
   volumes?: string[];
   command?: string[];
+  /** Hard container memory limit, e.g. "256m" / "1g", or raw bytes. */
+  memory?: number | string;
 }
 
 export interface LocalSpec {
