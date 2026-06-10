@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+// PortPrefix marks a Pando-owned port reference: $PORT_<svc>. These are always
+// resolved by Pando, so an unknown one is treated as a typo even in shell mode.
+const PortPrefix = "PORT_"
+
 // Scope holds the values available for interpolation in a single worktree.
 // Ports are addressed as $PORT_<name>; everything else comes from Vars.
 type Scope struct {
@@ -13,8 +17,8 @@ type Scope struct {
 }
 
 func (s Scope) lookup(name string) (string, bool) {
-	if strings.HasPrefix(name, "PORT_") {
-		svc := strings.TrimPrefix(name, "PORT_")
+	if strings.HasPrefix(name, PortPrefix) {
+		svc := strings.TrimPrefix(name, PortPrefix)
 		if p, ok := s.Ports[svc]; ok {
 			return fmt.Sprintf("%d", p), true
 		}
@@ -31,6 +35,18 @@ func (s Scope) lookup(name string) (string, bool) {
 // produce an error so misconfigured stacks fail loudly instead of silently
 // wiring up empty values.
 func (s Scope) String(in string) (string, error) {
+	return s.expand(in, false)
+}
+
+// Shell expands the same syntax as String but leaves unknown $VAR / ${VAR}
+// references untouched so the shell can resolve them ($HOME, user-set env,
+// etc.). PORT_<svc> references are always Pando-owned: an unknown one is a typo
+// and still errors, even in shell mode.
+func (s Scope) Shell(in string) (string, error) {
+	return s.expand(in, true)
+}
+
+func (s Scope) expand(in string, shell bool) (string, error) {
 	var b strings.Builder
 	for i := 0; i < len(in); {
 		c := in[i]
@@ -50,11 +66,15 @@ func (s Scope) String(in string) (string, error) {
 				return "", fmt.Errorf("unterminated ${ in %q", in)
 			}
 			expr := in[i+2 : i+2+end]
-			val, err := s.resolveExpr(expr, in)
+			val, ok, err := s.resolveExpr(expr, in, shell)
 			if err != nil {
 				return "", err
 			}
-			b.WriteString(val)
+			if ok {
+				b.WriteString(val)
+			} else {
+				b.WriteString(in[i : i+2+end+1])
+			}
 			i += 2 + end + 1
 			continue
 		}
@@ -66,6 +86,11 @@ func (s Scope) String(in string) (string, error) {
 		}
 		val, ok := s.lookup(name)
 		if !ok {
+			if shell && !strings.HasPrefix(name, PortPrefix) {
+				b.WriteString(in[i : i+1+n])
+				i += 1 + n
+				continue
+			}
 			return "", fmt.Errorf("undefined variable $%s in %q", name, in)
 		}
 		b.WriteString(val)
@@ -74,7 +99,7 @@ func (s Scope) String(in string) (string, error) {
 	return b.String(), nil
 }
 
-func (s Scope) resolveExpr(expr, src string) (string, error) {
+func (s Scope) resolveExpr(expr, src string, shell bool) (string, bool, error) {
 	name := expr
 	var def string
 	hasDef := false
@@ -84,12 +109,15 @@ func (s Scope) resolveExpr(expr, src string) (string, error) {
 		hasDef = true
 	}
 	if val, ok := s.lookup(name); ok {
-		return val, nil
+		return val, true, nil
 	}
 	if hasDef {
-		return def, nil
+		return def, true, nil
 	}
-	return "", fmt.Errorf("undefined variable ${%s} in %q", name, src)
+	if shell && !strings.HasPrefix(name, PortPrefix) {
+		return "", false, nil
+	}
+	return "", false, fmt.Errorf("undefined variable ${%s} in %q", name, src)
 }
 
 func scanName(s string) (string, int) {

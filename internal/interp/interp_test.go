@@ -115,6 +115,35 @@ func TestSliceAndMap(t *testing.T) {
 	}
 }
 
+func TestShellPassesUnknownVarsThrough(t *testing.T) {
+	got, err := scope().Shell("echo $HOME and ${UNSET} and $PORT_api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "echo $HOME and ${UNSET} and 8001" {
+		t.Errorf("shell should keep unknown vars, resolve ports: %q", got)
+	}
+}
+
+func TestShellResolvesKnownVars(t *testing.T) {
+	got, err := scope().Shell("$ENV-$HOST")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "dev-localhost" {
+		t.Errorf("shell should resolve known Pando vars: %q", got)
+	}
+}
+
+func TestShellStillErrorsOnUnknownPort(t *testing.T) {
+	if _, err := scope().Shell("$PORT_ghost"); err == nil {
+		t.Fatal("unknown PORT_ is a typo, must error even in shell mode")
+	}
+	if _, err := scope().Shell("${PORT_ghost}"); err == nil {
+		t.Fatal("unknown braced PORT_ must error in shell mode")
+	}
+}
+
 func TestNilSliceMapPassThrough(t *testing.T) {
 	s := scope()
 	if sl, _ := s.Slice(nil); sl != nil {
