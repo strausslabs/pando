@@ -34,6 +34,7 @@ type Scheduler struct {
 	onState   StateFunc
 	inputHash func(*resource.Resource) string
 	waitReady func(ctx context.Context, r *resource.Resource, env Env) error
+	extReady  func(name string) bool
 
 	mu     sync.Mutex
 	states map[string]Phase
@@ -50,12 +51,19 @@ type Options struct {
 	// WaitReady blocks until the resource's readiness probe passes. Called for
 	// long-running resources after Start returns; nil means skip probing.
 	WaitReady func(ctx context.Context, r *resource.Resource, env Env) error
+	// ExternalReady reports whether a shared dependency (managed outside this
+	// graph) is ready. nil treats every external dep as satisfied.
+	ExternalReady func(name string) bool
 }
 
 func New(g *dag.Graph, opts Options) *Scheduler {
 	onState := opts.OnState
 	if onState == nil {
 		onState = func(NodeState) {}
+	}
+	extReady := opts.ExternalReady
+	if extReady == nil {
+		extReady = func(string) bool { return true }
 	}
 	return &Scheduler{
 		graph:     g,
@@ -65,6 +73,7 @@ func New(g *dag.Graph, opts Options) *Scheduler {
 		onState:   onState,
 		inputHash: opts.InputHash,
 		waitReady: opts.WaitReady,
+		extReady:  extReady,
 		states:    make(map[string]Phase),
 	}
 }
@@ -130,7 +139,17 @@ func (s *Scheduler) run(ctx context.Context, names []string) error {
 			defer close(done[name])
 
 			blocked := false
+			// Shared (external) deps must be ready before this resource starts.
+			for _, ext := range s.graph.ExternalDeps(name) {
+				if !s.extReady(ext) {
+					blocked = true
+					break
+				}
+			}
 			for _, dep := range s.graph.Deps(name) {
+				if blocked {
+					break
+				}
 				if ch, ok := done[dep]; ok {
 					select {
 					case <-ch:

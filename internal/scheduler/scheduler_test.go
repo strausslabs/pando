@@ -470,3 +470,43 @@ func TestStateCallbackFires(t *testing.T) {
 		t.Errorf("last phase should be healthy, got %v", phases)
 	}
 }
+
+func TestExternalDepReadyAllowsStart(t *testing.T) {
+	// api depends on shared "auth"; with ExternalReady true, it starts.
+	g, err := dag.BuildExternal(&resource.Stack{Name: "s", Resources: []*resource.Resource{
+		svc("api", "auth"),
+	}}, map[string]bool{"auth": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fe := newFakeExec()
+	s := New(g, Options{
+		Executors:     map[resource.Kind]Executor{resource.KindLocal: fe, resource.KindTask: fe},
+		ExternalReady: func(string) bool { return true },
+	})
+	_ = s.Up(context.Background())
+	if s.Phase("api") != PhaseHealthy {
+		t.Errorf("api should be healthy when external dep ready, got %s", s.Phase("api"))
+	}
+}
+
+func TestExternalDepNotReadyBlocks(t *testing.T) {
+	g, err := dag.BuildExternal(&resource.Stack{Name: "s", Resources: []*resource.Resource{
+		svc("api", "auth"),
+	}}, map[string]bool{"auth": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fe := newFakeExec()
+	s := New(g, Options{
+		Executors:     map[resource.Kind]Executor{resource.KindLocal: fe, resource.KindTask: fe},
+		ExternalReady: func(string) bool { return false },
+	})
+	_ = s.Up(context.Background())
+	if s.Phase("api") != PhaseBlocked {
+		t.Errorf("api should be blocked when external dep not ready, got %s", s.Phase("api"))
+	}
+	if fe.startCount("api") != 0 {
+		t.Errorf("api must not start while external dep unready, started %d", fe.startCount("api"))
+	}
+}

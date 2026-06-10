@@ -152,3 +152,29 @@ func TestDependentsTracked(t *testing.T) {
 		t.Errorf("db should have api+worker as dependents, got %v", deps)
 	}
 }
+
+func TestBuildExternalDepNotWiredAsEdge(t *testing.T) {
+	// api depends on "auth", which is external (shared); the graph must accept
+	// it without auth being a node, record it as an external dep, and keep it
+	// out of the regular dep edges.
+	g, err := BuildExternal(stack(r("api", "auth")), map[string]bool{"auth": true})
+	if err != nil {
+		t.Fatalf("build with external dep: %v", err)
+	}
+	if deps := g.Deps("api"); len(deps) != 0 {
+		t.Errorf("external dep should not be a regular dep edge, got %v", deps)
+	}
+	ext := g.ExternalDeps("api")
+	if len(ext) != 1 || ext[0] != "auth" {
+		t.Errorf("auth should be recorded as external dep, got %v", ext)
+	}
+	if _, ok := g.Node("auth"); ok {
+		t.Error("external dep must not be a node in this graph")
+	}
+}
+
+func TestBuildUnknownDepStillErrorsWhenNotExternal(t *testing.T) {
+	if _, err := BuildExternal(stack(r("api", "ghost")), nil); err == nil {
+		t.Error("dep on unknown, non-external resource should error")
+	}
+}

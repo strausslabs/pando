@@ -37,6 +37,7 @@ interface NormalizedResource {
   hooks?: Service["hooks"];
   every?: number;
   preview?: boolean;
+  shared?: boolean;
 }
 
 interface NormalizedStack {
@@ -96,6 +97,7 @@ function normalizeResource(name: string, s: Service): NormalizedResource {
   if (s.hooks) res.hooks = s.hooks;
   if (s.every !== undefined) res.every = dur(s.every);
   if (s.preview) res.preview = true;
+  if (s.shared) res.shared = true;
   return res;
 }
 

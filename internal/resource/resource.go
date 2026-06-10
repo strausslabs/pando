@@ -126,6 +126,10 @@ type Resource struct {
 	// Preview marks a resource whose port serves a web UI; the dashboard renders
 	// a live iframe of it instead of its logs.
 	Preview    bool             `json:"preview,omitempty"`
+	// Shared makes the resource a daemon-level singleton: it runs once (not per
+	// worktree), keeps a fixed port, and any worktree's resources may depend on
+	// it by name (e.g. shared auth, a common DB, Temporal). May be periodic.
+	Shared     bool             `json:"shared,omitempty"`
 	Ready      Probe            `json:"ready,omitempty"`
 	Build      *Build           `json:"build,omitempty" validate:"omitempty"`
 	Compose    *ComposeSpec     `json:"compose,omitempty" validate:"omitempty"`
@@ -164,6 +168,9 @@ func (r *Resource) allDeps() []string {
 	}
 	return dedupe(deps)
 }
+
+// AllDeps returns every dependency name (Deps plus compose dependsOn), deduped.
+func (r *Resource) AllDeps() []string { return r.allDeps() }
 
 func (s *Stack) Get(name string) (*Resource, bool) {
 	for _, r := range s.Resources {

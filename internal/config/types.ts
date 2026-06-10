@@ -95,6 +95,8 @@ export interface Service {
   every?: Duration;
   /** Render this resource's port as a live web preview (iframe) in the dashboard instead of logs. */
   preview?: boolean;
+  /** Run once for the whole daemon (a shared singleton) rather than per worktree; other resources may depend on it by name. */
+  shared?: boolean;
 }
 
 export interface Stack {

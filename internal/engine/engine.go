@@ -74,11 +74,27 @@ func New(cfg Config) *Engine {
 // starting anything. Ports are allocated deterministically from the worktree
 // path and the resource set.
 func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
-	g, err := dag.Build(stack)
+	// Hoist shared singletons into the daemon-level shared stack; the worktree
+	// keeps only its own resources and references shared ones as external deps.
+	sharedRes, localRes := partitionShared(stack)
+	if err := e.mergeShared(sharedRes); err != nil {
+		return err
+	}
+	local := &resource.Stack{Name: stack.Name, Resources: localRes}
+
+	external := e.sharedNames()
+	g, err := dag.BuildExternal(local, external)
 	if err != nil {
 		return err
 	}
-	ports := e.cfg.Allocator.Allocate(wt.Path, resourceNames(stack))
+	ports := e.cfg.Allocator.Allocate(wt.Path, resourceNames(local))
+	// Merge shared ports so a local resource can reach a shared dep via
+	// $PORT_<name>; local ports win on the rare name clash.
+	for name, p := range e.sharedPorts() {
+		if _, ok := ports[name]; !ok {
+			ports[name] = p
+		}
+	}
 	env := scheduler.Env{
 		Worktree: wt.Slug,
 		Project:  worktree.ProjectName(e.cfg.StackName, wt.Slug),
@@ -88,7 +104,7 @@ func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
 
 	as := &activeStack{
 		info:    api.WorktreeInfo{Path: wt.Path, Branch: wt.Branch, Head: wt.Head, Slug: wt.Slug, Ports: ports},
-		stack:   stack,
+		stack:   local,
 		graph:   g,
 		env:     env,
 		phases:  map[string]scheduler.Phase{},
@@ -104,13 +120,19 @@ func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
 }
 
 func (e *Engine) newScheduler(slug string, g *dag.Graph, env scheduler.Env, as *activeStack) *scheduler.Scheduler {
-	return scheduler.New(g, scheduler.Options{
+	opts := scheduler.Options{
 		Executors: e.cfg.Executors,
 		Store:     e.cfg.Store,
 		Env:       env,
 		OnState:   e.stateHandler(slug, as),
 		WaitReady: e.waitReady,
-	})
+	}
+	// Worktree stacks gate on shared-resource readiness; the shared stack itself
+	// has no external deps.
+	if slug != sharedSlug {
+		opts.ExternalReady = e.sharedReady
+	}
+	return scheduler.New(g, opts)
 }
 
 func resourceNames(stack *resource.Stack) []string {
@@ -288,6 +310,13 @@ func (e *Engine) Up(ctx context.Context, slug string, force bool) error {
 	}
 	if force {
 		e.cfg.Store.Reset(slug)
+	}
+	// Shared deps must be up before a dependent worktree starts; bring the
+	// shared stack to ready first (idempotent — already-healthy resources skip).
+	if slug != sharedSlug {
+		if err := e.ensureSharedUp(ctx); err != nil {
+			return err
+		}
 	}
 	err = as.sched.Up(ctx)
 	e.startPeriodic(as)

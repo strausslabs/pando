@@ -52,6 +52,33 @@ func wt() worktree.Worktree {
 	return worktree.Worktree{Path: "/tmp/demo", Branch: "main", Slug: "main"}
 }
 
+func wt2() worktree.Worktree {
+	return worktree.Worktree{Path: "/tmp/demo2", Branch: "feat", Slug: "feat"}
+}
+
+// sharedStack has a daemon-level auth singleton plus a local api that depends on
+// it (the AWS-auth pattern: one shared resource serving every worktree).
+func sharedStack() *resource.Stack {
+	return &resource.Stack{Name: "pando", Resources: []*resource.Resource{
+		{Name: "auth", Kind: resource.KindTask, Task: &resource.TaskSpec{Cmd: "echo authed"}, Shared: true, RunWhen: resource.RunOnce},
+		{Name: "api", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "echo api-up; sleep 30"}, Deps: []string{"auth"}},
+	}}
+}
+
+func findResource(st []api.WorktreeStatus, slug, name string) *api.ResourceStatus {
+	for i := range st {
+		if st[i].Worktree != slug {
+			continue
+		}
+		for j := range st[i].Resources {
+			if st[i].Resources[j].Name == name {
+				return &st[i].Resources[j]
+			}
+		}
+	}
+	return nil
+}
+
 func TestEngineUpStatusDown(t *testing.T) {
 	eng, _, _ := testEngine(t)
 	if err := eng.Register(wt(), demoStack()); err != nil {
@@ -258,6 +285,77 @@ func TestEngineStatusReportsPreview(t *testing.T) {
 	}
 	if preview["api"] {
 		t.Error("api should not be flagged preview")
+	}
+}
+
+func TestEngineSharedResourceHoistedAndDependentRuns(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	if err := eng.Register(wt(), sharedStack()); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := eng.Up(ctx, "main", false); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	defer eng.Down(ctx, "main")
+	defer eng.Down(ctx, sharedSlug)
+
+	st, _ := eng.Status(ctx)
+	// auth lives in the shared stack, not the worktree.
+	if findResource(st, "main", "auth") != nil {
+		t.Error("shared 'auth' should not appear under the worktree")
+	}
+	auth := findResource(st, sharedSlug, "auth")
+	if auth == nil {
+		t.Fatal("shared 'auth' missing from shared stack")
+	}
+	if auth.Phase != string(scheduler.PhaseDone) {
+		t.Errorf("auth phase = %q, want done", auth.Phase)
+	}
+	// api depended on auth and should have come up once auth was ready.
+	if !waitForLine(logs, "main", "api", "api-up") {
+		t.Error("api (depends on shared auth) never started")
+	}
+}
+
+func TestEngineSharedSingletonAcrossWorktrees(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	_ = eng.Register(wt(), sharedStack())
+	_ = eng.Register(wt2(), sharedStack())
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	_ = eng.Up(ctx, "feat", false)
+	defer eng.Down(ctx, "main")
+	defer eng.Down(ctx, "feat")
+	defer eng.Down(ctx, sharedSlug)
+
+	st, _ := eng.Status(ctx)
+	// Exactly one shared stack, with exactly one auth resource, despite two
+	// worktrees declaring it.
+	count := 0
+	for _, w := range st {
+		if w.Worktree == sharedSlug {
+			for _, r := range w.Resources {
+				if r.Name == "auth" {
+					count++
+				}
+			}
+		}
+	}
+	if count != 1 {
+		t.Errorf("shared auth should be a single singleton, found %d", count)
+	}
+}
+
+func TestEngineSharedMayNotDependOnLocal(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	// A shared resource depending on a non-shared resource must be rejected.
+	bad := &resource.Stack{Name: "pando", Resources: []*resource.Resource{
+		{Name: "local-db", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}},
+		{Name: "auth", Kind: resource.KindTask, Task: &resource.TaskSpec{Cmd: "echo x"}, Shared: true, Deps: []string{"local-db"}},
+	}}
+	if err := eng.Register(wt(), bad); err == nil {
+		t.Error("shared resource depending on a local resource should error")
 	}
 }
 

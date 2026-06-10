@@ -10,6 +10,7 @@ import (
 type Node struct {
 	Resource   *resource.Resource
 	deps       []string
+	extDeps    []string // deps satisfied outside this graph (shared resources)
 	dependents []string
 }
 
@@ -19,12 +20,28 @@ type Graph struct {
 }
 
 func Build(stack *resource.Stack) (*Graph, error) {
-	if err := stack.Validate(); err != nil {
+	return BuildExternal(stack, nil)
+}
+
+// BuildExternal compiles a stack whose resources may depend on names managed
+// outside this graph (shared resources). Such deps are recorded per node as
+// external — they are not wired as edges and not required to be nodes here; the
+// scheduler gates on their readiness via an injected check.
+func BuildExternal(stack *resource.Stack, external map[string]bool) (*Graph, error) {
+	if err := stack.ValidateExternal(external); err != nil {
 		return nil, err
 	}
 	g := &Graph{nodes: make(map[string]*Node, len(stack.Resources))}
 	for _, r := range stack.Resources {
-		g.nodes[r.Name] = &Node{Resource: r, deps: depsOf(r)}
+		var deps, ext []string
+		for _, d := range depsOf(r) {
+			if external[d] {
+				ext = append(ext, d)
+			} else {
+				deps = append(deps, d)
+			}
+		}
+		g.nodes[r.Name] = &Node{Resource: r, deps: deps, extDeps: ext}
 	}
 	for name, n := range g.nodes {
 		for _, d := range n.deps {
@@ -67,6 +84,15 @@ func (g *Graph) Nodes() map[string]*Node { return g.nodes }
 func (g *Graph) Deps(name string) []string {
 	if n, ok := g.nodes[name]; ok {
 		return n.deps
+	}
+	return nil
+}
+
+// ExternalDeps returns the names this resource depends on that live outside the
+// graph (shared resources), gated by the scheduler rather than wired as edges.
+func (g *Graph) ExternalDeps(name string) []string {
+	if n, ok := g.nodes[name]; ok {
+		return n.extDeps
 	}
 	return nil
 }

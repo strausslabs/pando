@@ -45,7 +45,11 @@ func (r *Resource) Validate() error {
 	return nil
 }
 
-func (s *Stack) Validate() error {
+func (s *Stack) Validate() error { return s.ValidateExternal(nil) }
+
+// ValidateExternal validates the stack, treating names in `external` as
+// satisfiable dependencies that live outside this stack (shared resources).
+func (s *Stack) ValidateExternal(external map[string]bool) error {
 	if err := validate.Struct(s); err != nil {
 		return friendly(err)
 	}
@@ -59,7 +63,7 @@ func (s *Stack) Validate() error {
 	}
 	for _, r := range s.Resources {
 		for _, d := range r.allDeps() {
-			if !seen[d] {
+			if !seen[d] && !external[d] {
 				return fmt.Errorf("resource %q depends on unknown resource %q", r.Name, d)
 			}
 		}
