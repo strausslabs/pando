@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/guyStrauss/pando/internal/resource"
 	"github.com/guyStrauss/pando/internal/scheduler"
 	"github.com/guyStrauss/pando/internal/state"
+	"github.com/guyStrauss/pando/internal/watcher"
 	"github.com/guyStrauss/pando/internal/worktree"
 	"github.com/spf13/cobra"
 )
@@ -75,15 +78,19 @@ func runDaemon(g *globalFlags, tcpAddr string) error {
 		Execers:   execers,
 	})
 
-	wts, err := discoverWorktrees(ctx)
+	mgr := worktree.NewManager()
+	rec, err := watcher.NewReconciler(eng, loader, mgr, gitCommonDir(ctx), watcher.Options{
+		ConfigName: filepath.Base(g.config),
+		OnError:    func(err error) { fmt.Fprintf(os.Stderr, "reconcile: %v\n", err) },
+	})
 	if err != nil {
 		return err
 	}
-	for _, wt := range wts {
-		if err := eng.Register(wt, stack); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: register %s: %v\n", wt.Slug, err)
+	go func() {
+		if err := rec.Run(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "reconciler: %v\n", err)
 		}
-	}
+	}()
 
 	srv := daemon.NewServer(eng, logs)
 
@@ -96,19 +103,21 @@ func runDaemon(g *globalFlags, tcpAddr string) error {
 		fmt.Printf("pando daemon: ui on http://%s\n", tcpAddr)
 	}
 
-	fmt.Printf("pando daemon: socket %s, %d worktree(s)\n", g.socket, len(wts))
+	fmt.Printf("pando daemon: socket %s, watching for worktrees\n", g.socket)
 	return srv.Serve(ctx, g.socket)
 }
 
-// discoverWorktrees lists git worktrees, falling back to the current directory
-// as a single implicit worktree when not inside a git repo.
-func discoverWorktrees(ctx context.Context) ([]worktree.Worktree, error) {
-	mgr := worktree.NewManager()
-	wts, err := mgr.List(ctx)
-	if err != nil || len(wts) == 0 {
-		cwd, _ := os.Getwd()
-		slug := worktree.Slug("main", cwd)
-		return []worktree.Worktree{{Path: cwd, Branch: "main", Slug: slug}}, nil
+// gitCommonDir returns the repository's shared git directory, under which
+// .git/worktrees lives. Empty when not in a git repo (single-dir mode).
+func gitCommonDir(ctx context.Context) string {
+	out, err := exec.CommandContext(ctx, "git", "rev-parse", "--git-common-dir").Output()
+	if err != nil {
+		return ""
 	}
-	return wts, nil
+	dir := strings.TrimSpace(string(out))
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return ""
+	}
+	return abs
 }

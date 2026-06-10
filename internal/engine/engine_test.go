@@ -160,6 +160,17 @@ func apiExecReq() api.ExecRequest {
 	return api.ExecRequest{Worktree: "main", Resource: "api", Cmd: []string{"echo", "pando-exec-ok"}}
 }
 
+func waitForLine(logs *logbuf.Store, wt, res, substr string) bool {
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if countLines(logs, wt, res, substr) > 0 {
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return false
+}
+
 func countLines(logs *logbuf.Store, wt, res, substr string) int {
 	lines, _ := logs.Query(wt, res, logbuf.Query{})
 	n := 0

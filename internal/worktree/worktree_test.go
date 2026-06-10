@@ -120,6 +120,32 @@ func TestPortAssignmentStableAcrossServiceOrder(t *testing.T) {
 	}
 }
 
+func TestDeterministicAcrossRestartSameSet(t *testing.T) {
+	a := DefaultAllocator()
+	svcs := []string{"web", "db", "api"}
+	first := a.Allocate("/p", svcs)
+	for i := 0; i < 5; i++ {
+		next := a.Allocate("/p", svcs)
+		for k, v := range first {
+			if next[k] != v {
+				t.Fatalf("same (path, set) must yield same ports across calls: %s %d != %d", k, v, next[k])
+			}
+		}
+	}
+}
+
+func TestNoDuplicatePorts(t *testing.T) {
+	a := DefaultAllocator()
+	ports := a.Allocate("/p", []string{"a", "b", "c", "d", "e", "f"})
+	seen := map[int]string{}
+	for svc, p := range ports {
+		if other, dup := seen[p]; dup {
+			t.Errorf("port %d assigned to both %s and %s", p, other, svc)
+		}
+		seen[p] = svc
+	}
+}
+
 func TestProjectName(t *testing.T) {
 	if got := ProjectName("pando", "feat-x"); got != "pando-feat-x" {
 		t.Errorf("got %q", got)

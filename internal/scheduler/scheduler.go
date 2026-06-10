@@ -85,6 +85,18 @@ func (s *Scheduler) set(name string, p Phase, err error) {
 	s.onState(NodeState{Name: name, Phase: p, Err: err})
 }
 
+// Seed pre-populates phase state without notifying or executing. Used when a
+// stack is reloaded: resources that are unchanged and already healthy carry
+// their phase into the new scheduler so a partial re-run treats them as
+// satisfied dependencies.
+func (s *Scheduler) Seed(phases map[string]Phase) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for name, p := range phases {
+		s.states[name] = p
+	}
+}
+
 // Up brings the whole graph to a settled state in topological order, running
 // independent branches concurrently. A dependency that fails or is blocked
 // transitively blocks its dependents. Returns the first fatal error, if any.

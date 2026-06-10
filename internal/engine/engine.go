@@ -72,11 +72,7 @@ func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
 	if err != nil {
 		return err
 	}
-	names := make([]string, 0, len(stack.Resources))
-	for _, r := range stack.Resources {
-		names = append(names, r.Name)
-	}
-	ports := e.cfg.Allocator.Allocate(wt.Path, names)
+	ports := e.cfg.Allocator.Allocate(wt.Path, resourceNames(stack))
 	env := scheduler.Env{
 		Worktree: wt.Slug,
 		Project:  worktree.ProjectName(e.cfg.StackName, wt.Slug),
@@ -92,19 +88,142 @@ func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
 		phases: map[string]scheduler.Phase{},
 		errs:   map[string]string{},
 	}
+	as.sched = e.newScheduler(wt.Slug, g, env, as)
 
-	as.sched = scheduler.New(g, scheduler.Options{
-		Executors: e.cfg.Executors,
-		Store:     e.cfg.Store,
-		Env:       env,
-		InputHash: nil,
-		OnState:   e.stateHandler(wt.Slug, as),
-		WaitReady: e.waitReady,
-	})
 	e.mu.Lock()
 	e.stacks[wt.Slug] = as
 	e.mu.Unlock()
 	return nil
+}
+
+func (e *Engine) newScheduler(slug string, g *dag.Graph, env scheduler.Env, as *activeStack) *scheduler.Scheduler {
+	return scheduler.New(g, scheduler.Options{
+		Executors: e.cfg.Executors,
+		Store:     e.cfg.Store,
+		Env:       env,
+		OnState:   e.stateHandler(slug, as),
+		WaitReady: e.waitReady,
+	})
+}
+
+func resourceNames(stack *resource.Stack) []string {
+	names := make([]string, 0, len(stack.Resources))
+	for _, r := range stack.Resources {
+		names = append(names, r.Name)
+	}
+	return names
+}
+
+// Reload swaps in a new stack definition for an already-registered worktree and
+// re-runs only what changed. Removed resources are stopped; unchanged healthy
+// resources keep running and seed the new scheduler; added and changed
+// resources (plus their dependents) are re-run. This is the surgical config
+// hot-reload: no full teardown.
+func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) error {
+	e.mu.Lock()
+	as, ok := e.stacks[slug]
+	if !ok {
+		e.mu.Unlock()
+		return fmt.Errorf("worktree %q not registered", slug)
+	}
+	old := as.stack
+	oldPhases := copyPhases(as.phases)
+	info := as.info
+	e.mu.Unlock()
+
+	g, err := dag.Build(next)
+	if err != nil {
+		return err
+	}
+	diff := resource.DiffStacks(old, next)
+
+	// Stop resources that no longer exist, before swapping the graph.
+	for _, name := range diff.Removed {
+		if r, found := old.Get(name); found {
+			if exec, ok := e.cfg.Executors[r.Kind]; ok {
+				_ = exec.Stop(ctx, r, as.env)
+			}
+		}
+	}
+
+	ports := e.cfg.Allocator.Allocate(info.Path, resourceNames(next))
+	env := as.env
+	env.Ports = ports
+
+	newAS := &activeStack{
+		info:   api.WorktreeInfo{Path: info.Path, Branch: info.Branch, Slug: slug, Ports: ports},
+		stack:  next,
+		graph:  g,
+		env:    env,
+		phases: map[string]scheduler.Phase{},
+		errs:   map[string]string{},
+	}
+	newAS.sched = e.newScheduler(slug, g, env, newAS)
+
+	// Carry forward phases for resources that survive unchanged so their
+	// dependents see them as satisfied without re-running.
+	changed := markSet(diff.Added, diff.Changed)
+	seed := map[string]scheduler.Phase{}
+	for _, r := range next.Resources {
+		if changed[r.Name] {
+			continue
+		}
+		if p, ok := oldPhases[r.Name]; ok {
+			seed[r.Name] = p
+			newAS.phases[r.Name] = p
+		}
+	}
+	newAS.sched.Seed(seed)
+
+	e.mu.Lock()
+	e.stacks[slug] = newAS
+	e.mu.Unlock()
+
+	dirty := append(append([]string{}, diff.Added...), diff.Changed...)
+	if len(dirty) == 0 {
+		return nil
+	}
+	return newAS.sched.UpSubset(ctx, dirty...)
+}
+
+// Deregister stops everything for a worktree and forgets it. Used when a git
+// worktree is removed.
+func (e *Engine) Deregister(ctx context.Context, slug string) error {
+	e.mu.Lock()
+	as, ok := e.stacks[slug]
+	if ok {
+		delete(e.stacks, slug)
+	}
+	e.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	return as.sched.Down(ctx)
+}
+
+func (e *Engine) Registered(slug string) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	_, ok := e.stacks[slug]
+	return ok
+}
+
+func copyPhases(in map[string]scheduler.Phase) map[string]scheduler.Phase {
+	out := make(map[string]scheduler.Phase, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func markSet(lists ...[]string) map[string]bool {
+	m := map[string]bool{}
+	for _, l := range lists {
+		for _, s := range l {
+			m[s] = true
+		}
+	}
+	return m
 }
 
 func (e *Engine) stateHandler(slug string, as *activeStack) scheduler.StateFunc {

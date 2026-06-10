@@ -123,17 +123,32 @@ func DefaultAllocator() PortAllocator {
 }
 
 // Allocate returns a map of service-name -> port for one worktree. Each
-// worktree gets a contiguous block of `Stride` ports; within the block,
-// services are assigned in sorted order for stability.
+// worktree gets a contiguous block of `Stride` ports; within the block a
+// service's slot is derived from a hash of its name, so adding or removing a
+// service never moves the ports of the others. Collisions are resolved by
+// deterministic linear probing in sorted name order, keeping assignment stable
+// regardless of input order.
 func (a PortAllocator) Allocate(worktreePath string, services []string) map[string]int {
 	block := a.blockStart(worktreePath)
 	sorted := append([]string(nil), services...)
 	sortStrings(sorted)
 	out := make(map[string]int, len(sorted))
-	for i, svc := range sorted {
-		out[svc] = block + (i % a.Stride)
+	used := make(map[int]bool, len(sorted))
+	for _, svc := range sorted {
+		slot := a.slot(svc)
+		for used[slot] {
+			slot = (slot + 1) % a.Stride
+		}
+		used[slot] = true
+		out[svc] = block + slot
 	}
 	return out
+}
+
+func (a PortAllocator) slot(service string) int {
+	sum := sha256.Sum256([]byte(service))
+	n := binary.BigEndian.Uint64(sum[:8])
+	return int(n % uint64(a.Stride))
 }
 
 func (a PortAllocator) blockStart(path string) int {
