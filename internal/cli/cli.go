@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 
 	"github.com/guyStrauss/pando/internal/daemon"
 	"github.com/spf13/cobra"
@@ -10,6 +12,7 @@ import (
 type globalFlags struct {
 	socket string
 	config string
+	json   bool
 }
 
 func Execute(version string) error {
@@ -23,6 +26,7 @@ func Execute(version string) error {
 	}
 	root.PersistentFlags().StringVar(&g.socket, "socket", daemon.DefaultSocketPath(), "daemon socket path")
 	root.PersistentFlags().StringVarP(&g.config, "config", "f", "pando.config.ts", "path to config file")
+	root.PersistentFlags().BoolVar(&g.json, "json", false, "emit machine-readable JSON (for scripts and agents)")
 
 	root.AddCommand(
 		daemonCmd(g),
@@ -38,3 +42,9 @@ func Execute(version string) error {
 }
 
 func ctx() context.Context { return context.Background() }
+
+func printJSON(v any) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
+}

@@ -100,6 +100,9 @@ func statusCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if g.json {
+				return printJSON(st)
+			}
 			printStatus(st)
 			return nil
 		},
@@ -143,6 +146,9 @@ func logsCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if g.json {
+				return printJSON(lines)
+			}
 			for _, l := range lines {
 				fmt.Printf("%s\n", l.Text)
 			}
@@ -175,8 +181,14 @@ func execCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprint(os.Stdout, res.Stdout)
-			fmt.Fprint(os.Stderr, res.Stderr)
+			if g.json {
+				if err := printJSON(res); err != nil {
+					return err
+				}
+			} else {
+				fmt.Fprint(os.Stdout, res.Stdout)
+				fmt.Fprint(os.Stderr, res.Stderr)
+			}
 			if res.ExitCode != 0 {
 				os.Exit(res.ExitCode)
 			}
@@ -215,6 +227,9 @@ func worktreesCmd(g *globalFlags) *cobra.Command {
 			wts, err := cl.ListWorktrees(ctx())
 			if err != nil {
 				return err
+			}
+			if g.json {
+				return printJSON(wts)
 			}
 			tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 			fmt.Fprintln(tw, "SLUG\tBRANCH\tPATH")
