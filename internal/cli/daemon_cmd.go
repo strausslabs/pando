@@ -20,6 +20,7 @@ import (
 	"github.com/guyStrauss/pando/internal/scheduler"
 	"github.com/guyStrauss/pando/internal/state"
 	"github.com/guyStrauss/pando/internal/watcher"
+	"github.com/guyStrauss/pando/internal/web"
 	"github.com/guyStrauss/pando/internal/worktree"
 	"github.com/spf13/cobra"
 )
@@ -93,6 +94,9 @@ func runDaemon(g *globalFlags, tcpAddr string) error {
 	}()
 
 	srv := daemon.NewServer(eng, logs)
+	if ui, ok := web.Handler(); ok {
+		srv.MountUI(ui)
+	}
 
 	if tcpAddr != "" {
 		go func() {

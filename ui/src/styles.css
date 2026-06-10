@@ -1,0 +1,460 @@
+/* Pando — "living grove instrument".
+   One organism, shared root, many stems. Dark forest-floor canvas; aspen-gold
+   accent; resources are nodes that breathe when healthy, pulse when building,
+   wither when failed. */
+
+:root {
+  --soil-900: #0c0f0d;
+  --soil-800: #12161300;
+  --soil-850: #101512;
+  --soil-700: #1a201c;
+  --soil-600: #232a25;
+  --bark: #2e3630;
+  --moss: #3a463d;
+
+  --bone: #ece6d8;
+  --bone-dim: #9aa39a;
+  --bone-faint: #5d665d;
+
+  --aspen: #e8b53d;
+  --aspen-bright: #ffd166;
+  --aspen-deep: #b8841f;
+
+  --living: #6fcf7f;
+  --building: #f2c14e;
+  --pulse: #5aa9e6;
+  --wither: #e0654b;
+  --dormant: #4a544b;
+
+  --grain: 0.04;
+
+  --font-display: "Fraunces", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --ease-organic: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(120% 80% at 50% -10%, #16201a 0%, transparent 55%),
+    radial-gradient(90% 60% at 85% 110%, #15120a 0%, transparent 50%),
+    var(--soil-900);
+  color: var(--bone);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Grain overlay for organic texture. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: var(--grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+
+/* ── Masthead ───────────────────────────────────────────── */
+.masthead {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+  padding: 1.4rem 2rem 1.1rem;
+  border-bottom: 1px solid var(--soil-600);
+  position: relative;
+}
+
+.masthead::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 38%;
+  height: 1px;
+  background: linear-gradient(90deg, var(--aspen) 0%, transparent 100%);
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+  color: var(--bone);
+  font-optical-sizing: auto;
+}
+.wordmark .o {
+  color: var(--aspen);
+  font-style: italic;
+}
+
+.tagline {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 0.95rem;
+  color: var(--bone-faint);
+}
+
+.conn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+.conn .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dormant);
+}
+.conn.live .dot {
+  background: var(--living);
+  box-shadow: 0 0 0 0 rgba(111, 207, 127, 0.6);
+  animation: breathe 2.4s var(--ease-organic) infinite;
+}
+
+/* ── Grove layout ──────────────────────────────────────── */
+.grove {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 38%);
+  min-height: 0;
+}
+
+.stems {
+  overflow-y: auto;
+  padding: 1.75rem 2rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Each worktree is a stem rising from the root line. */
+.stem {
+  border: 1px solid var(--soil-600);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--soil-700) 0%, var(--soil-850) 100%);
+  overflow: hidden;
+  animation: rise 0.7s var(--ease-organic) backwards;
+  box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.9);
+}
+
+.stem-head {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--soil-600);
+  background: rgba(232, 181, 61, 0.02);
+}
+.stem-branch {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.18rem;
+  letter-spacing: -0.01em;
+  color: var(--bone);
+}
+.stem-slug {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--aspen-deep);
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--soil-600);
+  border-radius: 999px;
+}
+.stem-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.btn {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+  background: transparent;
+  border: 1px solid var(--soil-600);
+  border-radius: 7px;
+  padding: 0.32rem 0.7rem;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-organic);
+}
+.btn:hover {
+  color: var(--soil-900);
+  background: var(--aspen);
+  border-color: var(--aspen);
+  transform: translateY(-1px);
+}
+.btn.ghost:hover {
+  color: var(--bone);
+  background: var(--soil-600);
+  border-color: var(--moss);
+}
+
+/* Resource nodes — leaves on the stem. */
+.nodes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.node {
+  position: relative;
+  border: 1px solid var(--soil-600);
+  border-radius: 10px;
+  padding: 0.85rem 0.95rem;
+  background: var(--soil-800);
+  cursor: pointer;
+  transition: all 0.25s var(--ease-organic);
+  overflow: hidden;
+}
+.node:hover {
+  border-color: var(--moss);
+  transform: translateY(-2px);
+}
+.node.selected {
+  border-color: var(--aspen);
+  box-shadow: 0 0 0 1px var(--aspen-deep) inset;
+}
+
+/* Phase accent bar that grows along the node's left edge. */
+.node::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--phase, var(--dormant));
+}
+
+.node-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+.node-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.02rem;
+  color: var(--bone);
+}
+.node-kind {
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+  margin-left: auto;
+}
+
+.node-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+  color: var(--bone-dim);
+}
+.glyph {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--phase, var(--dormant));
+  flex-shrink: 0;
+}
+.node[data-state="healthy"] .glyph,
+.node[data-state="running"] .glyph,
+.node[data-state="done"] .glyph {
+  animation: breathe 2.8s var(--ease-organic) infinite;
+}
+.node[data-state="starting"] .glyph,
+.node[data-state="liveUpdating"] .glyph {
+  animation: pulse 0.9s ease-in-out infinite;
+}
+.node[data-state="failed"] {
+  border-color: rgba(224, 101, 75, 0.35);
+}
+
+.node-port {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--aspen);
+  font-weight: 500;
+}
+.node-err {
+  margin-top: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--wither);
+  line-height: 1.35;
+  max-height: 2.7em;
+  overflow: hidden;
+}
+
+/* ── Log canopy ────────────────────────────────────────── */
+.canopy {
+  border-left: 1px solid var(--soil-600);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  background: linear-gradient(180deg, var(--soil-850), var(--soil-900));
+}
+.canopy-head {
+  padding: 1.1rem 1.5rem;
+  border-bottom: 1px solid var(--soil-600);
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+.canopy-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+.canopy-sub {
+  font-size: 0.72rem;
+  color: var(--bone-faint);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.logstream {
+  overflow-y: auto;
+  padding: 1rem 1.25rem 2rem;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+.logline {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.05rem 0;
+  animation: fadein 0.35s ease backwards;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.logline .ts {
+  color: var(--bone-faint);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.logline .txt {
+  color: var(--bone);
+}
+.logline.stderr .txt {
+  color: var(--wither);
+}
+.logline.system .txt {
+  color: var(--aspen);
+  font-style: italic;
+}
+
+.empty {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--bone-faint);
+  padding: 2rem;
+}
+.empty .leaf {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.3rem;
+  color: var(--bone-dim);
+  margin-bottom: 0.4rem;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bark);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--moss);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Motion ────────────────────────────────────────────── */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--phase, var(--living)) 55%, transparent);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+    filter: brightness(1.25);
+  }
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+@keyframes fadein {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

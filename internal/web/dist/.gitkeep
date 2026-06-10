@@ -1,0 +1,3 @@
+Build output for the embedded UI lands here via `make ui` (bun run build).
+This placeholder keeps the directory present so go:embed compiles before the
+UI is built. The daemon only mounts the UI when a real index.html is embedded.

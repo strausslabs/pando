@@ -44,6 +44,13 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /events", s.handleEvents)
 }
 
+// MountUI serves the given handler for all non-API routes. The API routes are
+// registered with specific patterns, which take precedence over this catch-all
+// in the Go 1.22+ mux, so the UI never shadows an endpoint.
+func (s *Server) MountUI(ui http.Handler) {
+	s.mux.Handle("/", ui)
+}
+
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	st, err := s.ops.Status(r.Context())
 	if err != nil {
