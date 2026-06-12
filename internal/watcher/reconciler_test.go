@@ -64,9 +64,10 @@ func (f *fakeEngine) ClearConfigError(slug string) {
 }
 
 type fakeLoader struct {
-	mu     sync.Mutex
-	stacks map[string]*resource.Stack // path -> stack
-	err    error
+	mu       sync.Mutex
+	stacks   map[string]*resource.Stack // path -> stack
+	err      error
+	failPath string // only this path fails to load
 }
 
 func (l *fakeLoader) LoadFile(ctx context.Context, path string) (*resource.Stack, error) {
@@ -74,6 +75,9 @@ func (l *fakeLoader) LoadFile(ctx context.Context, path string) (*resource.Stack
 	defer l.mu.Unlock()
 	if l.err != nil {
 		return nil, l.err
+	}
+	if l.failPath != "" && l.failPath == path {
+		return nil, context.DeadlineExceeded
 	}
 	if s, ok := l.stacks[path]; ok {
 		return s, nil
@@ -193,6 +197,30 @@ func TestBrokenConfigReportsError(t *testing.T) {
 	defer eng.mu.Unlock()
 	if eng.configErrs["main"] == "" {
 		t.Error("broken config on add should report a config error for the worktree")
+	}
+}
+
+func TestConfigErrorScopedToEditedWorktree(t *testing.T) {
+	eng := newFakeEngine()
+	lister := &fakeLister{}
+	lister.set([]worktree.Worktree{wtree("main"), wtree("feat")})
+	loader := &fakeLoader{stacks: map[string]*resource.Stack{}}
+	r := newReconciler(t, eng, loader, lister)
+	r.reconcileWorktrees(context.Background())
+
+	// Only feat's config now fails to load; reloading feat must not fault main.
+	loader.mu.Lock()
+	loader.failPath = r.configPath(wtree("feat"))
+	loader.mu.Unlock()
+	r.reloadConfig(context.Background(), "feat")
+
+	eng.mu.Lock()
+	defer eng.mu.Unlock()
+	if eng.configErrs["feat"] == "" {
+		t.Error("feat's broken config should report a fault")
+	}
+	if _, ok := eng.configErrs["main"]; ok {
+		t.Error("editing feat's config must not fault main")
 	}
 }
 

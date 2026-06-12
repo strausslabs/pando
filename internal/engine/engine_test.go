@@ -79,6 +79,15 @@ func findResource(st []api.WorktreeStatus, slug, name string) *api.ResourceStatu
 	return nil
 }
 
+func findWorktree(st []api.WorktreeStatus, slug string) api.WorktreeStatus {
+	for _, ws := range st {
+		if ws.Worktree == slug {
+			return ws
+		}
+	}
+	return api.WorktreeStatus{}
+}
+
 func TestEngineUpStatusDown(t *testing.T) {
 	eng, _, _ := testEngine(t)
 	if err := eng.Register(wt(), demoStack()); err != nil {

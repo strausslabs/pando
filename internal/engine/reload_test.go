@@ -211,6 +211,40 @@ func TestConfigErrorSurfacesForUnregisteredWorktree(t *testing.T) {
 	}
 }
 
+func TestConfigErrorIsScopedToWorktree(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	ctx := context.Background()
+	_ = eng.Register(wt(), stackWith(localR("api", "sleep 30")))  // main, healthy
+	_ = eng.Register(wt2(), stackWith(localR("api", "sleep 30"))) // feat, healthy
+	_ = eng.Up(ctx, "main", false)
+	_ = eng.Up(ctx, "feat", false)
+	defer eng.Down(ctx, "main")
+	defer eng.Down(ctx, "feat")
+
+	// feat's config breaks; main must stay clean.
+	eng.ReportConfigError("feat", "feat", "bad config in feat")
+
+	st, _ := eng.Status(ctx)
+	main := findWorktree(st, "main")
+	feat := findWorktree(st, "feat")
+	if main.Error != "" {
+		t.Errorf("main blighted by feat's config error: %q", main.Error)
+	}
+	if feat.Error == "" {
+		t.Error("feat should carry its own config error")
+	}
+
+	// feat recovers (e.g. user adds a resource correctly); main still untouched.
+	eng.ClearConfigError("feat")
+	st, _ = eng.Status(ctx)
+	if findWorktree(st, "main").Error != "" {
+		t.Error("main blighted after feat recovered")
+	}
+	if findWorktree(st, "feat").Error != "" {
+		t.Error("feat fault not cleared on recovery")
+	}
+}
+
 func TestConfigErrorClearedOnRecovery(t *testing.T) {
 	eng, _, _ := testEngine(t)
 	ctx := context.Background()
