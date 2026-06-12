@@ -4,16 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/guyStrauss/pando/internal/compose"
 	"github.com/guyStrauss/pando/internal/config"
 	"github.com/guyStrauss/pando/internal/daemon"
+	"github.com/guyStrauss/pando/internal/discovery"
 	"github.com/guyStrauss/pando/internal/engine"
 	"github.com/guyStrauss/pando/internal/executor"
 	"github.com/guyStrauss/pando/internal/logbuf"
@@ -61,6 +60,18 @@ func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	gitDir := discovery.GitCommonDir(ctx)
+	socket := g.socket
+	if socket == "" {
+		if gitDir == "" {
+			return fmt.Errorf("not inside a git repository; run pando from a repo or pass --socket")
+		}
+		socket = discovery.SocketPath(gitDir)
+	}
+	if err := discovery.EnsureDir(); err != nil {
+		return err
+	}
+
 	stack, err := loader.LoadFile(ctx, g.config)
 	if err != nil {
 		return err
@@ -101,7 +112,7 @@ func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 	})
 
 	mgr := worktree.NewManager()
-	rec, err := watcher.NewReconciler(eng, loader, mgr, gitCommonDir(ctx), watcher.Options{
+	rec, err := watcher.NewReconciler(eng, loader, mgr, gitDir, watcher.Options{
 		ConfigName: filepath.Base(g.config),
 		AutoUp:     autoUp,
 		OnUp: func(upCtx context.Context, slug string) {
@@ -134,24 +145,22 @@ func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 		fmt.Printf("pando ready → http://%s\n", tcpAddr)
 	}
 
-	fmt.Fprintf(os.Stderr, "watching for worktrees (socket %s)\n", g.socket)
-	err = srv.Serve(ctx, g.socket)
+	if gitDir != "" {
+		_ = discovery.Write(discovery.Info{
+			Socket:       socket,
+			PID:          os.Getpid(),
+			UIAddr:       tcpAddr,
+			GitCommonDir: gitDir,
+			StartedUnix:  time.Now().Unix(),
+		})
+		defer discovery.Remove(gitDir)
+	}
+
+	fmt.Fprintf(os.Stderr, "watching for worktrees (socket %s)\n", socket)
+	err = srv.Serve(ctx, socket)
 
 	shutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	eng.Shutdown(shutCtx)
 	return err
-}
-
-func gitCommonDir(ctx context.Context) string {
-	out, err := exec.CommandContext(ctx, "git", "rev-parse", "--git-common-dir").Output()
-	if err != nil {
-		return ""
-	}
-	dir := strings.TrimSpace(string(out))
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return ""
-	}
-	return abs
 }

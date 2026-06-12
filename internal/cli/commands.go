@@ -55,7 +55,10 @@ func upCmd(g *globalFlags) *cobra.Command {
 		Use:   "up",
 		Short: "Bring the stack up for a worktree",
 		RunE: func(c *cobra.Command, args []string) error {
-			cl := client.New(g.socket)
+			cl, err := newClient(g)
+			if err != nil {
+				return err
+			}
 			wt, err := resolveWorktree(cl, worktree)
 			if err != nil {
 				return err
@@ -74,7 +77,10 @@ func downCmd(g *globalFlags) *cobra.Command {
 		Use:   "down",
 		Short: "Tear the stack down for a worktree",
 		RunE: func(c *cobra.Command, args []string) error {
-			cl := client.New(g.socket)
+			cl, err := newClient(g)
+			if err != nil {
+				return err
+			}
 			wt, err := resolveWorktree(cl, worktree)
 			if err != nil {
 				return err
@@ -91,7 +97,10 @@ func statusCmd(g *globalFlags) *cobra.Command {
 		Use:   "status",
 		Short: "Show status of all worktrees and resources",
 		RunE: func(c *cobra.Command, args []string) error {
-			cl := client.New(g.socket)
+			cl, err := newClient(g)
+			if err != nil {
+				return err
+			}
 			st, err := cl.Status(ctx())
 			if err != nil {
 				return err
@@ -128,7 +137,10 @@ func logsCmd(g *globalFlags) *cobra.Command {
 		Short: "Show logs for a resource",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			cl := client.New(g.socket)
+			cl, err := newClient(g)
+			if err != nil {
+				return err
+			}
 			wt, err := resolveWorktree(cl, worktree)
 			if err != nil {
 				return err
@@ -164,7 +176,10 @@ func execCmd(g *globalFlags) *cobra.Command {
 		Short: "Run a command inside a resource",
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(c *cobra.Command, args []string) error {
-			cl := client.New(g.socket)
+			cl, err := newClient(g)
+			if err != nil {
+				return err
+			}
 			wt, err := resolveWorktree(cl, worktree)
 			if err != nil {
 				return err
@@ -202,7 +217,10 @@ func restartCmd(g *globalFlags) *cobra.Command {
 		Short: "Restart a single resource and its dependents",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			cl := client.New(g.socket)
+			cl, err := newClient(g)
+			if err != nil {
+				return err
+			}
 			wt, err := resolveWorktree(cl, worktree)
 			if err != nil {
 				return err
@@ -219,7 +237,10 @@ func worktreesCmd(g *globalFlags) *cobra.Command {
 		Use:   "worktrees",
 		Short: "List registered worktrees and their ports",
 		RunE: func(c *cobra.Command, args []string) error {
-			cl := client.New(g.socket)
+			cl, err := newClient(g)
+			if err != nil {
+				return err
+			}
 			wts, err := cl.ListWorktrees(ctx())
 			if err != nil {
 				return err

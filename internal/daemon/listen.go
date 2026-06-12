@@ -6,16 +6,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 )
-
-func DefaultSocketPath() string {
-	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
-		return filepath.Join(dir, "pando.sock")
-	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("pando-%d.sock", os.Getuid()))
-}
 
 func (s *Server) Serve(ctx context.Context, socketPath string) error {
 	if err := removeStaleSocket(socketPath); err != nil {
