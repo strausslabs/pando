@@ -14,8 +14,6 @@ import (
 	"github.com/guyStrauss/pando/internal/api"
 )
 
-// Client talks to the daemon over its Unix socket. The HTTP transport dials the
-// socket regardless of the URL host, so request URLs use a fixed dummy host.
 type Client struct {
 	http *http.Client
 }

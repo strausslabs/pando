@@ -9,11 +9,6 @@ import (
 	"github.com/guyStrauss/pando/internal/scheduler"
 )
 
-// Sample reports the live resource footprint of a managed host process. Because
-// resources launch via `sh -c`, the actual workload is usually a child of the
-// shell, so we sum RSS and CPU across the root process and all its descendants.
-// It is called on a poll loop and must not block: gopsutil's CPUPercent may
-// return 0 on the first observation, which is acceptable.
 func (e *Engine) Sample(ctx context.Context, r *resource.Resource, env scheduler.Env) (scheduler.Usage, bool) {
 	e.mu.Lock()
 	m, ok := e.running[key(env.Worktree, r.Name)]
@@ -24,7 +19,6 @@ func (e *Engine) Sample(ctx context.Context, r *resource.Resource, env scheduler
 
 	root, err := process.NewProcess(int32(m.cmd.Process.Pid))
 	if err != nil {
-		// Root process is no longer in the OS table.
 		return scheduler.Usage{}, false
 	}
 
@@ -41,16 +35,10 @@ func (e *Engine) Sample(ctx context.Context, r *resource.Resource, env scheduler
 	return usage, true
 }
 
-// Sync is a no-op for host processes: their working tree is the worktree on
-// disk, so a file change is already visible without copying. liveUpdate's run
-// and restart steps still apply. Implements scheduler.Syncer.
 func (e *Engine) Sync(ctx context.Context, r *resource.Resource, env scheduler.Env, localPath, containerPath string) error {
 	return nil
 }
 
-// collectTree returns root and all of its descendants. Errors fetching a node's
-// children are skipped so a single transient failure (e.g. a child exiting
-// mid-walk) does not abort the whole sample.
 func collectTree(root *process.Process) []*process.Process {
 	out := []*process.Process{root}
 	queue := []*process.Process{root}

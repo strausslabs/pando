@@ -21,14 +21,6 @@ import (
 	"github.com/guyStrauss/pando/internal/scheduler"
 )
 
-// Backend runs Compose-kind resources through the Docker SDK for typed
-// container lifecycle, log demuxing, and interactive exec. The image build step
-// uses the `docker build` CLI (see build.go) because BuildKit secret mounts
-// require a build session the classic SDK ImageBuild endpoint does not expose;
-// the CLI build hits the same daemon-side BuildKit cache, so nothing is lost.
-//
-// Each worktree maps to one container per resource, named <project>-<resource>,
-// labelled with pando.project so concurrent worktrees never collide.
 type Backend struct {
 	cli    client.APIClient
 	docker string
@@ -79,8 +71,6 @@ func (b *Backend) run(ctx context.Context, r *resource.Resource, env scheduler.E
 	if err != nil {
 		return err
 	}
-	// For pulled images (no local build), ensure the image exists before create
-	// so a cold cache does not fail the resource.
 	if r.Build == nil {
 		if err := b.ensureImage(ctx, env.Worktree, r.Name, cfg.Image); err != nil {
 			return err
@@ -95,13 +85,11 @@ func (b *Backend) run(ctx context.Context, r *resource.Resource, env scheduler.E
 		return fmt.Errorf("start %s: %w", name, err)
 	}
 	rep.Phase(scheduler.PhaseRunning)
+	// WithoutCancel: log following must outlive the Start call's ctx.
 	go b.followLogs(context.WithoutCancel(ctx), env.Worktree, r.Name, created.ID)
 	return nil
 }
 
-// containerConfig translates a resource into Docker container + host configs.
-// Pure (no IO) so it is unit tested without a daemon. Ports and env are
-// interpolated against the worktree scope.
 func containerConfig(r *resource.Resource, env scheduler.Env) (*container.Config, *container.HostConfig, error) {
 	sc := scopeOf(env)
 
@@ -117,7 +105,6 @@ func containerConfig(r *resource.Resource, env scheduler.Env) (*container.Config
 	hostCfg := &container.HostConfig{}
 
 	if r.Compose != nil {
-		// Env files load first so inline Env (appended below) wins on conflict.
 		for _, f := range r.Compose.EnvFile {
 			vars, err := readEnvFile(expandHome(f))
 			if err != nil {
@@ -154,7 +141,6 @@ func containerConfig(r *resource.Resource, env scheduler.Env) (*container.Config
 
 		if r.Compose.Memory > 0 {
 			hostCfg.Resources.Memory = r.Compose.Memory
-			// soft floor: kernel reclaims down to this before the hard cap kicks in
 			hostCfg.Resources.MemoryReservation = r.Compose.Memory
 		}
 		if r.Compose.CPUs > 0 {
@@ -186,8 +172,6 @@ func containerConfig(r *resource.Resource, env scheduler.Env) (*container.Config
 	return cfg, hostCfg, nil
 }
 
-// readEnvFile parses an env file of KEY=VALUE lines, skipping blanks and
-// comments, returning "KEY=VALUE" entries suitable for container.Config.Env.
 func readEnvFile(path string) ([]string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -207,8 +191,6 @@ func readEnvFile(path string) ([]string, error) {
 	return out, nil
 }
 
-// ensureImage pulls the image if it is not already present locally. Pull
-// progress is drained to the resource's log so a slow first pull is visible.
 func (b *Backend) ensureImage(ctx context.Context, worktree, res, ref string) error {
 	if _, _, err := b.cli.ImageInspectWithRaw(ctx, ref); err == nil {
 		return nil
@@ -221,7 +203,7 @@ func (b *Backend) ensureImage(ctx context.Context, worktree, res, ref string) er
 		return fmt.Errorf("pull %s: %w", ref, err)
 	}
 	defer rc.Close()
-	_, _ = io.Copy(io.Discard, rc) // block until the pull completes
+	_, _ = io.Copy(io.Discard, rc)
 	return nil
 }
 
@@ -239,18 +221,12 @@ func (b *Backend) removeContainer(ctx context.Context, project, res string) {
 	_ = b.cli.ContainerRemove(rmCtx, name, container.RemoveOptions{Force: true})
 }
 
-// followLogs streams a container's stdout/stderr into the log store. Docker
-// multiplexes both streams over one connection; stdcopy demuxes them so stderr
-// lines are tagged correctly.
 func (b *Backend) followLogs(ctx context.Context, worktree, res, containerID string) {
 	rc, err := b.cli.ContainerLogs(ctx, containerID, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
 		Follow:     true,
-		// "all": the container is freshly created by Pando, so its entire log
-		// history is ours to show; starting at 0 would race past the first
-		// lines emitted before this follow attaches.
-		Tail: "all",
+		Tail:       "all",
 	})
 	if err != nil {
 		return

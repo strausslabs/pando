@@ -20,7 +20,6 @@ import (
 	"github.com/guyStrauss/pando/internal/scheduler"
 )
 
-// Clock supplies timestamps; injectable so tests stay deterministic.
 type Clock func() time.Time
 
 type Sink interface {
@@ -31,9 +30,6 @@ func scopeFromEnv(env scheduler.Env) interp.Scope {
 	return interp.Scope{Ports: env.Ports, Vars: env.Vars}
 }
 
-// command builds an *exec.Cmd from an interpolated shell command line. It runs
-// through `sh -c` so users can write natural command strings (pipes, &&, env
-// expansion) rather than argv arrays.
 func command(ctx context.Context, raw, cwd string, extraEnv map[string]string, sc interp.Scope) (*exec.Cmd, error) {
 	line, err := sc.Shell(raw)
 	if err != nil {
@@ -56,7 +52,7 @@ func command(ctx context.Context, raw, cwd string, extraEnv map[string]string, s
 		envv = append(envv, k+"="+val)
 	}
 	cmd.Env = envv
-	// New process group so we can signal the whole tree on Stop.
+	// Setpgid: stopOne signals the whole group via Kill(-pid, ...).
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return cmd, nil
 }
@@ -78,9 +74,6 @@ func (e *Engine) system(wt, name, format string, args ...any) {
 	e.sink.Append(wt, name, logbuf.System, fmt.Sprintf(format, args...), e.mkLine)
 }
 
-// Engine runs Local and Task resources as host processes, capturing their
-// output into the log sink. It tracks long-running locals so Stop can tear
-// them down; tasks run to completion and are not tracked.
 type Engine struct {
 	sink  Sink
 	clock Clock
@@ -139,9 +132,6 @@ func (e *Engine) startTask(ctx context.Context, r *resource.Resource, env schedu
 	return nil
 }
 
-// startLocal launches a long-running process and returns once it is considered
-// started. The process keeps running in the background; readiness probing is
-// the scheduler's concern. Output streams until the process exits or Stop runs.
 func (e *Engine) startLocal(ctx context.Context, r *resource.Resource, env scheduler.Env, rep scheduler.Reporter) error {
 	e.stopOne(env.Worktree, r.Name)
 
@@ -190,9 +180,6 @@ func (e *Engine) Stop(ctx context.Context, r *resource.Resource, env scheduler.E
 	return nil
 }
 
-// Exec runs a one-shot command for the Exec API. For host-process resources
-// there is no container to enter, so the command runs in the same working
-// directory and environment the resource itself would use.
 func (e *Engine) Exec(ctx context.Context, worktree, name string, argv []string, env scheduler.Env) (api.ExecResult, error) {
 	if len(argv) == 0 {
 		return api.ExecResult{}, fmt.Errorf("exec: empty command")
@@ -218,8 +205,6 @@ func (e *Engine) Exec(ctx context.Context, worktree, name string, argv []string,
 	return res, nil
 }
 
-// stopOne signals the process group, then escalates to SIGKILL if it does not
-// exit within a grace period.
 func (e *Engine) stopOne(wt, name string) {
 	e.mu.Lock()
 	m, ok := e.running[key(wt, name)]
@@ -230,8 +215,6 @@ func (e *Engine) stopOne(wt, name string) {
 	if !ok {
 		return
 	}
-	// Mark before signaling so the exit-watch goroutine treats the resulting
-	// process death as intentional rather than a crash.
 	m.stopping.Store(true)
 	if m.cmd.Process != nil {
 		_ = syscall.Kill(-m.cmd.Process.Pid, syscall.SIGTERM)

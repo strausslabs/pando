@@ -1,6 +1,4 @@
-// Mirrors internal/api/api.go. Kept in sync by hand; the daemon is the source
-// of truth for the wire shapes.
-
+// Hand-synced mirror of internal/api/api.go (the wire-shape source of truth).
 export type Phase =
   | "pending"
   | "waiting"

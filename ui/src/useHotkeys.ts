@@ -1,16 +1,12 @@
 import { useEffect } from "react";
 
 export interface Hotkeys {
-  onCommandK: () => void; // focus worktree/resource search
-  onCommandL: () => void; // focus log search
-  onHelp: () => void; // toggle shortcuts modal
-  onEscape: () => void; // dismiss
+  onCommandK: () => void;
+  onCommandL: () => void;
+  onHelp: () => void;
+  onEscape: () => void;
 }
 
-// useHotkeys wires the global keyboard shortcuts. ⌘K / Ctrl-K focuses search;
-// "?" opens the shortcuts modal; Escape dismisses. Keystrokes are ignored while
-// typing in an input so they do not hijack normal editing — except ⌘K and
-// Escape, which should work everywhere.
 export function useHotkeys(keys: Hotkeys) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

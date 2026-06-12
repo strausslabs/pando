@@ -39,8 +39,6 @@ func daemonCmd(g *globalFlags) *cobra.Command {
 	return cmd
 }
 
-// startCmd is the friendly entrypoint: run the daemon and automatically bring
-// every discovered worktree up, so a single `pando start` boots the grove.
 func startCmd(g *globalFlags) *cobra.Command {
 	var tcpAddr string
 	cmd := &cobra.Command{
@@ -86,8 +84,6 @@ func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 		resource.KindLocal: proc,
 	}
 
-	// The compose backend needs Docker; without it, compose resources simply
-	// cannot run, but local/task stacks still work.
 	if cb, err := compose.New(logs, time.Now); err != nil {
 		fmt.Fprintf(os.Stderr, "compose disabled: %v\n", err)
 	} else {
@@ -141,16 +137,12 @@ func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 	fmt.Fprintf(os.Stderr, "watching for worktrees (socket %s)\n", g.socket)
 	err = srv.Serve(ctx, g.socket)
 
-	// Tear down every stack so local processes are stopped and their ports
-	// freed; a fresh context because ctx is already cancelled on shutdown.
 	shutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	eng.Shutdown(shutCtx)
 	return err
 }
 
-// gitCommonDir returns the repository's shared git directory, under which
-// .git/worktrees lives. Empty when not in a git repo (single-dir mode).
 func gitCommonDir(ctx context.Context) string {
 	out, err := exec.CommandContext(ctx, "git", "rev-parse", "--git-common-dir").Output()
 	if err != nil {

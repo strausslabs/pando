@@ -11,10 +11,6 @@ import (
 	"github.com/guyStrauss/pando/internal/logbuf"
 )
 
-// handleEvents upgrades to WebSocket and streams log + phase events. On connect
-// it optionally replays missed log lines from the ring buffer using the
-// lastSeq query param, then forwards live events from the bus. An optional
-// worktree filter narrows the stream client-side without a reconnect.
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	if s.logs == nil {
 		writeErr(w, http.StatusServiceUnavailable, errClosed)

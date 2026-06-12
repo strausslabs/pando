@@ -21,19 +21,13 @@ type Event struct {
 	Phase    string    `json:"phase,omitempty"`
 }
 
-// Store holds one ring Buffer per (worktree, resource) and a pub/sub bus that
-// fans every append out to live subscribers (UI sockets, MCP streams). One
-// producer write reaches all readers; queriers hit the buffer directly.
 type Store struct {
 	mu       sync.RWMutex
 	capacity int
 	buffers  map[string]*Buffer
 
-	// seq is a process-global, monotonic line counter shared across every
-	// per-resource buffer. The UI relies on Seq being a unique id (React keys,
-	// dedup, merge-sort of the all-resources view, reconnect cursor); a
-	// per-buffer counter would hand two resources the same low numbers and the
-	// merged view would collide their rows.
+	// seq MUST stay process-global, not per-buffer: Seq is a unique cross-resource
+	// id the merged UI view relies on; per-buffer counters would collide.
 	seq atomic.Uint64
 
 	subMu   sync.Mutex
@@ -84,8 +78,6 @@ func (s *Store) Query(worktree, resource string, q Query) ([]Line, error) {
 	return s.buffer(worktree, resource).Query(q)
 }
 
-// Text returns the plain text of all buffered lines for a resource, oldest
-// first. Satisfies the logMatch probe's querier.
 func (s *Store) Text(worktree, resource string) []string {
 	lines, _ := s.buffer(worktree, resource).Query(Query{})
 	out := make([]string, len(lines))
@@ -103,8 +95,6 @@ func (s *Store) publish(e Event) {
 	s.subMu.Lock()
 	defer s.subMu.Unlock()
 	for _, ch := range s.subs {
-		// Drop on slow consumer rather than block the producer; UI will catch up
-		// via a subsequent Query on reconnect.
 		select {
 		case ch <- e:
 		default:

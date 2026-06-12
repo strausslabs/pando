@@ -64,8 +64,7 @@ func parsePorcelain(out string) []Worktree {
 			continue
 		case strings.HasPrefix(line, "HEAD "):
 			head := strings.TrimPrefix(line, "HEAD ")
-			// An unborn branch (fresh repo, no commits) reports the all-zero SHA;
-			// treat that as "no head" so the UI shows nothing rather than 0000…
+			// Unborn branch reports the all-zero SHA; treat as no head.
 			if strings.Trim(head, "0") != "" {
 				cur.Head = head
 			}
@@ -82,9 +81,6 @@ func parsePorcelain(out string) []Worktree {
 
 var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
 
-// Slug derives a stable, filesystem- and docker-safe identifier. It prefers the
-// branch name, falling back to the worktree's leaf directory when detached or
-// branch-less, so two worktrees on different paths never collide.
 func Slug(branch, path string) string {
 	base := branch
 	if base == "" || base == "detached" {
@@ -113,28 +109,16 @@ func ProjectName(stack, slug string) string {
 	return fmt.Sprintf("%s-%s", stack, slug)
 }
 
-// PortAllocator assigns deterministic ports per worktree. The same worktree
-// path always yields the same ports across daemon restarts and machines, so a
-// branch's services keep stable URLs. Allocation is keyed on the worktree path
-// (not branch) because the path is what is truly unique and durable.
 type PortAllocator struct {
 	Base   int
 	Range  int
 	Stride int
 }
 
-// Base 27000 reads as "tree" (2-7) and sits clear of common dev ports
-// (3000/5173/8000/8080). Each worktree gets a 100-port block within the range.
 func DefaultAllocator() PortAllocator {
 	return PortAllocator{Base: 27000, Range: 40000, Stride: 100}
 }
 
-// Allocate returns a map of service-name -> port for one worktree. Each
-// worktree gets a contiguous block of `Stride` ports; within the block a
-// service's slot is derived from a hash of its name, so adding or removing a
-// service never moves the ports of the others. Collisions are resolved by
-// deterministic linear probing in sorted name order, keeping assignment stable
-// regardless of input order.
 func (a PortAllocator) Allocate(worktreePath string, services []string) map[string]int {
 	block := a.blockStart(worktreePath)
 	sorted := append([]string(nil), services...)

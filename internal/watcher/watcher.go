@@ -9,16 +9,10 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-// Event is a debounced notification that something under a watched root
-// changed. Consumers re-evaluate rather than acting on the specific path.
 type Event struct {
 	Path string
 }
 
-// Watcher debounces fsnotify events per logical key so a burst of writes (an
-// editor saving, git rewriting worktree metadata) collapses into a single
-// callback. Each watched path is mapped to a key; events for the same key
-// within the debounce window fire once.
 type Watcher struct {
 	fsw      *fsnotify.Watcher
 	debounce time.Duration
@@ -26,13 +20,10 @@ type Watcher struct {
 	mu      sync.Mutex
 	keyOf   map[string]string
 	timers  map[string]*time.Timer
-	changed map[string]map[string]bool // key -> set of changed file paths
+	changed map[string]map[string]bool
 	onFire  func(key string, paths []string)
 }
 
-// onFire receives the logical key plus the concrete file paths that changed in
-// the debounce window (so callers can match trigger globs against real files,
-// not just the watched directory).
 func New(debounce time.Duration, onFire func(key string, paths []string)) (*Watcher, error) {
 	fsw, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -48,9 +39,6 @@ func New(debounce time.Duration, onFire func(key string, paths []string)) (*Watc
 	}, nil
 }
 
-// Add watches a path and associates it with a logical key reported on fire.
-// Directories are watched non-recursively; callers add the specific dirs they
-// care about (e.g. .git/worktrees and each config's directory).
 func (w *Watcher) Add(path, key string) error {
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -73,9 +61,6 @@ func (w *Watcher) Remove(path string) {
 	_ = w.fsw.Remove(abs)
 }
 
-// Run consumes fsnotify events until ctx is cancelled. It matches each event to
-// the most specific watched key (exact path, then parent directory) and
-// schedules a debounced fire.
 func (w *Watcher) Run(ctx context.Context) error {
 	defer w.fsw.Close()
 	for {

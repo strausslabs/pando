@@ -23,9 +23,6 @@ type Line struct {
 	Text     string    `json:"text"`
 }
 
-// Buffer is a bounded per-resource ring of log lines. Old lines are evicted
-// once capacity is exceeded. A monotonic sequence number lets clients resume
-// without gaps. Safe for concurrent producers and queriers.
 type Buffer struct {
 	mu    sync.RWMutex
 	cap   int
@@ -45,9 +42,6 @@ func New(capacity int) *Buffer {
 func (b *Buffer) Append(l Line) Line {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	// A pre-assigned Seq (set by the Store from a process-global counter) is kept
-	// so sequence numbers are unique across every resource, not just within one
-	// buffer. Direct callers that leave Seq zero get the buffer-local counter.
 	if l.Seq == 0 {
 		b.seq++
 		l.Seq = b.seq

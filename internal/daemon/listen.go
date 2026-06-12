@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-// DefaultSocketPath returns the per-user daemon socket location.
 func DefaultSocketPath() string {
 	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
 		return filepath.Join(dir, "pando.sock")
@@ -18,10 +17,6 @@ func DefaultSocketPath() string {
 	return filepath.Join(os.TempDir(), fmt.Sprintf("pando-%d.sock", os.Getuid()))
 }
 
-// Serve listens on a Unix socket and serves the HTTP handler until ctx is
-// cancelled, then shuts down gracefully. A stale socket from a previous crash
-// is removed first. The socket is created with 0600 so only the owning user can
-// drive the daemon.
 func (s *Server) Serve(ctx context.Context, socketPath string) error {
 	if err := removeStaleSocket(socketPath); err != nil {
 		return err
@@ -37,8 +32,6 @@ func (s *Server) Serve(ctx context.Context, socketPath string) error {
 	return s.serveListener(ctx, ln, socketPath)
 }
 
-// ServeTCP serves the handler on a TCP address (used by the web UI). Bound to
-// loopback by callers; never expose the daemon beyond localhost.
 func (s *Server) ServeTCP(ctx context.Context, addr string) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -69,8 +62,6 @@ func (s *Server) serveListener(ctx context.Context, ln net.Listener, socketPath 
 	}
 }
 
-// removeStaleSocket removes a socket file that no daemon is listening on. If a
-// live daemon answers, it returns an error so we do not clobber a running one.
 func removeStaleSocket(path string) error {
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {

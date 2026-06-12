@@ -8,9 +8,6 @@ import (
 	"github.com/guyStrauss/pando/internal/logbuf"
 )
 
-// startPeriodic restarts the tickers for a stack's periodic resources, safe to
-// call after Up and Reload. The first tick fires one interval out: the initial
-// run already happened during Up.
 func (e *Engine) startPeriodic(as *activeStack) {
 	as.mu.Lock()
 	if as.periodicCancel != nil {

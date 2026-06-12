@@ -17,9 +17,14 @@ These apply to **both** the Go backend and the TS frontend.
 - **Return shapes match their callers.** Return the type the caller actually
   uses (`(T, bool)` / `(T, error)` consistently); don't return a struct the
   caller immediately destructures into the same fields every time.
-- **Comments earn their place.** No comment for self-evident code. Keep a
-  comment only when it explains something non-obvious: a subtle invariant, a
-  reason ("why", not "what"), a footgun. Delete narration.
+- **Code is self-explanatory; comments are the exception.** Default to none.
+  Names carry the meaning — rename rather than annotate. The only comment that
+  earns its place is a terse one-liner stating a non-obvious **invariant** or
+  **footgun** whose violation silently breaks things and which the code itself
+  cannot express. No narration, no section dividers, no restating the next line,
+  no obvious doc comments. When in doubt, delete. (Functional directives like
+  `//go:embed`, `//go:build`, `//nolint`, and `// eslint-disable-*` are not
+  comments in this sense — keep them.)
 
 ## Architecture
 

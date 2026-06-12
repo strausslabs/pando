@@ -6,10 +6,6 @@ import (
 	"encoding/json"
 )
 
-// Fingerprint is a stable content hash of a resource's definition. Two
-// resources with equal fingerprints are interchangeable, so a config reload can
-// skip re-running them. Deps are included: a resource whose dependencies
-// changed is itself considered changed.
 func (r *Resource) Fingerprint() string {
 	b, err := json.Marshal(r)
 	if err != nil {
@@ -19,9 +15,6 @@ func (r *Resource) Fingerprint() string {
 	return hex.EncodeToString(sum[:])
 }
 
-// Diff compares an old and new stack by fingerprint, returning which resources
-// were added, removed, or changed. Unchanged resources appear in none of the
-// sets.
 type Diff struct {
 	Added   []string
 	Removed []string

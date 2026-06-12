@@ -12,11 +12,6 @@ import (
 	"github.com/guyStrauss/pando/internal/scheduler"
 )
 
-// build compiles the resource's image with `docker build`. The CLI is used for
-// the build step specifically because BuildKit secret mounts (--secret) need a
-// build session the classic SDK ImageBuild endpoint cannot drive. One
-// Dockerfile serves every environment via --target / --build-arg; secrets use
-// --mount=type=secret and never land in an image layer.
 func (b *Backend) build(ctx context.Context, r *resource.Resource, env scheduler.Env) error {
 	if b.docker == "" {
 		return fmt.Errorf("docker CLI not found on PATH (required to build images)")
@@ -43,8 +38,6 @@ func (b *Backend) build(ctx context.Context, r *resource.Resource, env scheduler
 	return nil
 }
 
-// buildArgs constructs the `docker build` argv. Pure (no IO) so it is unit
-// tested without Docker.
 func buildArgs(r *resource.Resource, env scheduler.Env) ([]string, error) {
 	sc := scopeOf(env)
 	args := []string{"build", "-t", imageTag(env.Project, r.Name)}

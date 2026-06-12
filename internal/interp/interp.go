@@ -5,12 +5,8 @@ import (
 	"strings"
 )
 
-// PortPrefix marks a Pando-owned port reference: $PORT_<svc>. These are always
-// resolved by Pando, so an unknown one is treated as a typo even in shell mode.
 const PortPrefix = "PORT_"
 
-// Scope holds the values available for interpolation in a single worktree.
-// Ports are addressed as $PORT_<name>; everything else comes from Vars.
 type Scope struct {
 	Ports map[string]int
 	Vars  map[string]string
@@ -30,18 +26,10 @@ func (s Scope) lookup(name string) (string, bool) {
 	return "", false
 }
 
-// String interpolates $NAME and ${NAME} / ${NAME:-default} references.
-// A literal "$$" emits a single "$". Unknown references without a default
-// produce an error so misconfigured stacks fail loudly instead of silently
-// wiring up empty values.
 func (s Scope) String(in string) (string, error) {
 	return s.expand(in, false)
 }
 
-// Shell expands the same syntax as String but leaves unknown $VAR / ${VAR}
-// references untouched so the shell can resolve them ($HOME, user-set env,
-// etc.). PORT_<svc> references are always Pando-owned: an unknown one is a typo
-// and still errors, even in shell mode.
 func (s Scope) Shell(in string) (string, error) {
 	return s.expand(in, true)
 }

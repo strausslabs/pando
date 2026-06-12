@@ -25,8 +25,6 @@ func lookDocker() string {
 	return path
 }
 
-// buildEnv forces BuildKit on for the build subprocess so --secret and inline
-// cache work regardless of the user's daemon default.
 func buildEnv() []string {
 	return append(os.Environ(), "DOCKER_BUILDKIT=1")
 }
@@ -40,8 +38,6 @@ func expandHome(path string) string {
 	return path
 }
 
-// logWriter turns a byte stream into newline-delimited log lines. stdcopy hands
-// it already-demuxed stdout/stderr; it buffers partial lines across writes.
 type logWriter struct {
 	emit func(string)
 	buf  bytes.Buffer
@@ -52,7 +48,6 @@ func (w *logWriter) Write(p []byte) (int, error) {
 	for {
 		line, err := w.buf.ReadString('\n')
 		if err != nil {
-			// No full line yet; put the remainder back for the next write.
 			w.buf.Reset()
 			w.buf.WriteString(line)
 			break
@@ -62,7 +57,6 @@ func (w *logWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// lineBuffer collects exec output into a string.
 type lineBuffer struct{ b strings.Builder }
 
 func (l *lineBuffer) Write(p []byte) (int, error) { return l.b.Write(p) }

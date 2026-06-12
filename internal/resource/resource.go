@@ -53,30 +53,20 @@ type Build struct {
 }
 
 type ComposeSpec struct {
-	Image     string            `json:"image,omitempty"`
-	Ports     []string          `json:"ports,omitempty"`
-	Env       map[string]string `json:"env,omitempty"`
-	EnvFile   []string          `json:"envFile,omitempty"`
-	DependsOn []string          `json:"dependsOn,omitempty"`
-	Volumes   []string          `json:"volumes,omitempty"`
-	Command   []string          `json:"command,omitempty"`
-	// Memory is a hard container memory limit in bytes (the DSL converts "256m"
-	// and friends). Zero means unbounded.
-	Memory int64 `json:"memory,omitempty" validate:"omitempty,min=0"`
-	// CPUs caps CPU as a fraction of cores (1.5 = one and a half cores); the
-	// backend converts to NanoCPUs. Zero means uncapped.
-	CPUs float64 `json:"cpus,omitempty" validate:"omitempty,min=0"`
-	// PidsLimit caps the number of processes. Zero means unlimited.
-	PidsLimit int64 `json:"pidsLimit,omitempty" validate:"omitempty,min=0"`
-	// Restart is the container restart policy: "", "no", "on-failure",
-	// "always", or "unless-stopped".
-	Restart     string       `json:"restart,omitempty" validate:"omitempty,oneof=no on-failure always unless-stopped"`
-	Healthcheck *Healthcheck `json:"healthcheck,omitempty" validate:"omitempty"`
+	Image       string            `json:"image,omitempty"`
+	Ports       []string          `json:"ports,omitempty"`
+	Env         map[string]string `json:"env,omitempty"`
+	EnvFile     []string          `json:"envFile,omitempty"`
+	DependsOn   []string          `json:"dependsOn,omitempty"`
+	Volumes     []string          `json:"volumes,omitempty"`
+	Command     []string          `json:"command,omitempty"`
+	Memory      int64             `json:"memory,omitempty" validate:"omitempty,min=0"`
+	CPUs        float64           `json:"cpus,omitempty" validate:"omitempty,min=0"`
+	PidsLimit   int64             `json:"pidsLimit,omitempty" validate:"omitempty,min=0"`
+	Restart     string            `json:"restart,omitempty" validate:"omitempty,oneof=no on-failure always unless-stopped"`
+	Healthcheck *Healthcheck      `json:"healthcheck,omitempty" validate:"omitempty"`
 }
 
-// Healthcheck is the Docker-native container healthcheck, distinct from Pando's
-// readyWhen probe. Test is the command (Docker CMD-SHELL form when one element,
-// CMD form when many).
 type Healthcheck struct {
 	Test     []string      `json:"test" validate:"required"`
 	Interval time.Duration `json:"interval,omitempty"`
@@ -120,15 +110,8 @@ type Resource struct {
 	Deps       []string         `json:"deps,omitempty"`
 	RunWhen    RunPolicy        `json:"runWhen,omitempty" validate:"omitempty,oneof=once always onChange manual"`
 	OnChange   []string         `json:"onChange,omitempty" validate:"required_if=RunWhen onChange"`
-	// Every > 0 re-runs the resource on this interval after its first run (e.g.
-	// a 30m sync task).
 	Every      time.Duration    `json:"every,omitempty" validate:"omitempty,min=0"`
-	// Preview marks a resource whose port serves a web UI; the dashboard renders
-	// a live iframe of it instead of its logs.
 	Preview    bool             `json:"preview,omitempty"`
-	// Shared makes the resource a daemon-level singleton: it runs once (not per
-	// worktree), keeps a fixed port, and any worktree's resources may depend on
-	// it by name (e.g. shared auth, a common DB, Temporal). May be periodic.
 	Shared     bool             `json:"shared,omitempty"`
 	Ready      Probe            `json:"ready,omitempty"`
 	Build      *Build           `json:"build,omitempty" validate:"omitempty"`
@@ -148,7 +131,6 @@ func (r *Resource) DefaultRunPolicy() RunPolicy {
 	if r.RunWhen != "" {
 		return r.RunWhen
 	}
-	// Periodic resources re-run every tick, so they must not record "ran once".
 	if r.IsPeriodic() {
 		return RunAlways
 	}
@@ -158,10 +140,8 @@ func (r *Resource) DefaultRunPolicy() RunPolicy {
 	return RunAlways
 }
 
-// IsPeriodic reports whether the resource re-runs on a fixed interval.
 func (r *Resource) IsPeriodic() bool { return r.Every > 0 }
 
-// AllDeps returns every dependency name (Deps plus compose dependsOn), deduped.
 func (r *Resource) AllDeps() []string {
 	deps := append([]string(nil), r.Deps...)
 	if r.Compose != nil {

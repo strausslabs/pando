@@ -10,7 +10,7 @@ import (
 type Node struct {
 	Resource   *resource.Resource
 	deps       []string
-	extDeps    []string // deps satisfied outside this graph (shared resources)
+	extDeps    []string
 	dependents []string
 }
 
@@ -23,10 +23,6 @@ func Build(stack *resource.Stack) (*Graph, error) {
 	return BuildExternal(stack, nil)
 }
 
-// BuildExternal compiles a stack whose resources may depend on names managed
-// outside this graph (shared resources). Such deps are recorded per node as
-// external — they are not wired as edges and not required to be nodes here; the
-// scheduler gates on their readiness via an injected check.
 func BuildExternal(stack *resource.Stack, external map[string]bool) (*Graph, error) {
 	if err := stack.ValidateExternal(external); err != nil {
 		return nil, err
@@ -71,8 +67,6 @@ func (g *Graph) Deps(name string) []string {
 	return nil
 }
 
-// ExternalDeps returns the names this resource depends on that live outside the
-// graph (shared resources), gated by the scheduler rather than wired as edges.
 func (g *Graph) ExternalDeps(name string) []string {
 	if n, ok := g.nodes[name]; ok {
 		return n.extDeps
@@ -87,14 +81,12 @@ func (g *Graph) Dependents(name string) []string {
 	return nil
 }
 
-// TopoOrder returns names sorted so every dep precedes its dependents.
 func (g *Graph) TopoOrder() []string {
 	out := make([]string, len(g.order))
 	copy(out, g.order)
 	return out
 }
 
-// Kahn's algorithm. Ties broken alphabetically for deterministic output.
 func (g *Graph) topoSort() ([]string, error) {
 	indeg := make(map[string]int, len(g.nodes))
 	for name := range g.nodes {
@@ -150,8 +142,6 @@ func (g *Graph) cycleMembers(sorted []string) string {
 	return fmt.Sprintf("%v", stuck)
 }
 
-// Dirty returns the transitive closure of dependents for the given changed
-// nodes, including the changed nodes themselves, in topological order.
 func (g *Graph) Dirty(changed ...string) []string {
 	mark := make(map[string]bool)
 	var walk func(string)

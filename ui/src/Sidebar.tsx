@@ -15,7 +15,7 @@ interface Props {
   stacks: WorktreeStatus[];
   target: Target | null;
   filter: string;
-  flashing?: Set<string>; // "worktree\0resource" keys pulsing from a live-update
+  flashing?: Set<string>;
   hideDone: boolean;
   onFilter: (v: string) => void;
   onToggleHideDone: () => void;
@@ -28,9 +28,6 @@ interface Props {
 export function Sidebar(props: Props) {
   const { stacks, filter, hideDone } = props;
 
-  // Filter worktrees -> matching resources by free text over both names. A
-  // worktree shows if its own name matches (all resources) or any resource
-  // matches (just those).
   const view = useMemo(() => {
     const q = filter.trim().toLowerCase();
     return stacks
@@ -40,7 +37,6 @@ export function Sidebar(props: Props) {
         if (q && !wtMatch) resources = resources.filter((r) => r.name.toLowerCase().includes(q));
         if (hideDone) {
           const kept = resources.filter((r) => !DONE.has(r.phase));
-          // Keep done resources only if the search explicitly matched them.
           resources = q && !wtMatch ? resources : kept;
         }
         return { ws, resources };

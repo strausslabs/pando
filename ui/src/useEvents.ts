@@ -5,9 +5,6 @@ export interface ConnectionState {
   connected: boolean;
 }
 
-// useEvents maintains a WebSocket to the daemon's /events stream. It auto
-// reconnects with the highest log sequence seen so the ring buffer replays only
-// missed lines, leaving no gaps and no duplicates across reconnects.
 export function useEvents(onEvent: (ev: WireEvent) => void): ConnectionState {
   const [connected, setConnected] = useState(false);
   const lastSeq = useRef(0);

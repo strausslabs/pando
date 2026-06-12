@@ -11,18 +11,11 @@ import (
 	"github.com/guyStrauss/pando/internal/scheduler"
 )
 
-// sharedSlug is the reserved worktree slug under which daemon-level shared
-// (singleton) resources live. It is not a git worktree, so the reconciler never
-// tracks or removes it, but Status/Down/Shutdown/periodic all treat it like any
-// other stack.
+// Not a git worktree: the reconciler must never track or remove this slug.
 const sharedSlug = "_shared"
 
-// sharedPortKey is the fixed allocator key for shared resources, so their ports
-// are stable and independent of any worktree path.
 const sharedPortKey = "__pando_shared__"
 
-// partitionShared splits a worktree's resources into the shared singletons and
-// the rest.
 func partitionShared(stack *resource.Stack) (shared, local []*resource.Resource) {
 	for _, r := range stack.Resources {
 		if r.Shared {
@@ -34,9 +27,6 @@ func partitionShared(stack *resource.Stack) (shared, local []*resource.Resource)
 	return shared, local
 }
 
-// mergeShared folds a worktree's shared resources into the daemon-level shared
-// stack (first definition of a name wins) and (re)builds its scheduler. Safe to
-// call repeatedly as worktrees register; a no-op when nothing new appears.
 func (e *Engine) mergeShared(incoming []*resource.Resource) error {
 	if len(incoming) == 0 {
 		return nil
@@ -65,8 +55,6 @@ func (e *Engine) mergeShared(incoming []*resource.Resource) error {
 	}
 	e.mu.Unlock()
 
-	// A shared resource is daemon-level, so it cannot reach a per-worktree
-	// resource: every dependency it declares must itself be shared.
 	shared := make(map[string]bool, len(resources))
 	for _, r := range resources {
 		shared[r.Name] = true
@@ -104,8 +92,6 @@ func (e *Engine) mergeShared(incoming []*resource.Resource) error {
 	as.sched = e.newScheduler(sharedSlug, g, env, as)
 
 	e.mu.Lock()
-	// Carry forward phases for already-running shared resources so a new
-	// worktree registering does not restart them.
 	if cur != nil {
 		for name, p := range cur.phases {
 			as.phases[name] = p
@@ -117,7 +103,6 @@ func (e *Engine) mergeShared(incoming []*resource.Resource) error {
 	return nil
 }
 
-// sharedNames returns the set of shared resource names currently registered.
 func (e *Engine) sharedNames() map[string]bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -130,9 +115,6 @@ func (e *Engine) sharedNames() map[string]bool {
 	return out
 }
 
-// sharedPorts returns the shared resources' allocated ports, merged into each
-// worktree's env so a resource depending on a shared one can reach it via
-// $PORT_<name>.
 func (e *Engine) sharedPorts() map[string]int {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -145,8 +127,6 @@ func (e *Engine) sharedPorts() map[string]int {
 	return out
 }
 
-// sharedReady reports whether a shared resource has reached an OK phase. Used as
-// the worktree schedulers' ExternalReady gate.
 func (e *Engine) sharedReady(name string) bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -157,9 +137,6 @@ func (e *Engine) sharedReady(name string) bool {
 	return s.phases[name].OK()
 }
 
-// ensureSharedUp brings the shared stack to a settled state once, before a
-// worktree that depends on it comes up. A no-op when there are no shared
-// resources.
 func (e *Engine) ensureSharedUp(ctx context.Context) error {
 	e.mu.RLock()
 	s := e.stacks[sharedSlug]

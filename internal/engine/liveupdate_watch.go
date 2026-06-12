@@ -10,17 +10,11 @@ import (
 	"github.com/guyStrauss/pando/internal/watcher"
 )
 
-// liveWatcher watches a worktree's source paths and runs each affected
-// resource's liveUpdate pipeline on change. One per active stack; started on Up,
-// stopped on Down/Reload.
 type liveWatcher struct {
 	w      *watcher.Watcher
 	cancel context.CancelFunc
 }
 
-// liveUpdatePaths returns, for a resource, the directories to watch: each
-// liveUpdate sync source plus any local.watch entries, resolved against the
-// worktree root.
 func liveUpdatePaths(r *resource.Resource, root string) []string {
 	var paths []string
 	add := func(p string) {
@@ -45,12 +39,9 @@ func liveUpdatePaths(r *resource.Resource, root string) []string {
 	return paths
 }
 
-// startLiveUpdate begins watching for a stack's live-update resources. A no-op
-// when none declare liveUpdate. Replaces any existing watcher for the stack.
 func (e *Engine) startLiveUpdate(as *activeStack) {
 	as.stopLiveUpdate()
 
-	// Map each watched directory to the resource that owns it.
 	owner := map[string]*resource.Resource{}
 	for _, r := range as.stack.Resources {
 		if len(r.LiveUpdate) == 0 {
@@ -70,7 +61,6 @@ func (e *Engine) startLiveUpdate(as *activeStack) {
 		if !ok {
 			return
 		}
-		// Fall back to the watched dir if fsnotify gave no concrete path (rare).
 		if len(paths) == 0 {
 			paths = []string{key}
 		}
@@ -106,9 +96,6 @@ func (as *activeStack) stopLiveUpdate() {
 	}
 }
 
-// watchDir returns the directory to register with the fsnotify watcher for a
-// path: the path itself if it is a directory, else its parent (fsnotify watches
-// directories, and the matcher resolves events to the parent key).
 func watchDir(p string) string {
 	if fi, err := os.Stat(p); err == nil && fi.IsDir() {
 		return p

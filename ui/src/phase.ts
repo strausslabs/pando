@@ -1,6 +1,5 @@
 import type { Phase } from "./types";
 
-// Maps a resource phase to its living color on the grove.
 export function phaseColor(phase: Phase): string {
   switch (phase) {
     case "healthy":
@@ -28,7 +27,5 @@ export function phaseColor(phase: Phase): string {
 
 export function phaseLabel(phase: Phase): string {
   if (phase === "") return "idle";
-  // Split camelCase ("shuttingDown" -> "shutting down", "liveUpdating" ->
-  // "live updating") so multi-word phases read naturally in the UI.
   return phase.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 }

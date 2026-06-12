@@ -2,11 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { LogLine } from "./types";
 import { LogBuffers } from "./logbuffer";
 
-// useLogStore keeps high-frequency log lines OUT of React state on the hot path.
-// Incoming lines land in a ref-held LogBuffers; a requestAnimationFrame batch
-// bumps a version counter at most once per frame, so a burst of hundreds of
-// lines/sec triggers ~60 renders/sec, not one render per line. Phase state lives
-// elsewhere, so log floods never re-render the grove.
 export function useLogStore() {
   const store = useRef(new LogBuffers());
   const dirty = useRef(false);
@@ -29,7 +24,6 @@ export function useLogStore() {
     [scheduleFlush],
   );
 
-  // version is a dependency so consumers re-read after each batched flush.
   const linesFor = useCallback(
     (worktree: string, resource: string): LogLine[] => store.current.linesFor(worktree, resource),
     // eslint-disable-next-line react-hooks/exhaustive-deps

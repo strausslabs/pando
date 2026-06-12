@@ -17,8 +17,6 @@ type NodeState struct {
 
 type StateFunc func(NodeState)
 
-// RunStore persists run-once / onChange bookkeeping across daemon restarts so a
-// migrate task does not re-run when the user switches away and back.
 type RunStore interface {
 	HasRun(worktree, resource string) bool
 	MarkRun(worktree, resource string)
@@ -41,18 +39,12 @@ type Scheduler struct {
 }
 
 type Options struct {
-	Executors map[resource.Kind]Executor
-	Store     RunStore
-	Env       Env
-	OnState   StateFunc
-	// InputHash computes a content hash for a resource's onChange inputs. May be
-	// nil, in which case onChange resources always run.
-	InputHash func(*resource.Resource) string
-	// WaitReady blocks until the resource's readiness probe passes. Called for
-	// long-running resources after Start returns; nil means skip probing.
-	WaitReady func(ctx context.Context, r *resource.Resource, env Env) error
-	// ExternalReady reports whether a shared dependency (managed outside this
-	// graph) is ready. nil treats every external dep as satisfied.
+	Executors     map[resource.Kind]Executor
+	Store         RunStore
+	Env           Env
+	OnState       StateFunc
+	InputHash     func(*resource.Resource) string
+	WaitReady     func(ctx context.Context, r *resource.Resource, env Env) error
 	ExternalReady func(name string) bool
 }
 
@@ -94,10 +86,6 @@ func (s *Scheduler) set(name string, p Phase, err error) {
 	s.onState(NodeState{Name: name, Phase: p, Err: err})
 }
 
-// Seed pre-populates phase state without notifying or executing. Used when a
-// stack is reloaded: resources that are unchanged and already healthy carry
-// their phase into the new scheduler so a partial re-run treats them as
-// satisfied dependencies.
 func (s *Scheduler) Seed(phases map[string]Phase) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -106,15 +94,10 @@ func (s *Scheduler) Seed(phases map[string]Phase) {
 	}
 }
 
-// Up brings the whole graph to a settled state in topological order, running
-// independent branches concurrently. A dependency that fails or is blocked
-// transitively blocks its dependents. Returns the first fatal error, if any.
 func (s *Scheduler) Up(ctx context.Context) error {
 	return s.run(ctx, s.graph.TopoOrder())
 }
 
-// UpSubset runs only the given changed nodes and their transitive dependents,
-// reusing already-healthy dependencies. Used by the file watcher.
 func (s *Scheduler) UpSubset(ctx context.Context, changed ...string) error {
 	return s.run(ctx, s.graph.Dirty(changed...))
 }
@@ -172,11 +155,8 @@ func (s *Scheduler) run(ctx context.Context, names []string) error {
 	return firstErr
 }
 
-// gate waits for a node's dependencies and reports whether it is blocked (a dep
-// failed/blocked or an external dep is not ready) or canceled (ctx ended while
-// waiting). A node is runnable only when both are false.
+// Runnable only when neither blocked (dep failed/blocked or external dep not ready) nor canceled (ctx ended while waiting).
 func (s *Scheduler) gate(ctx context.Context, name string, done map[string]chan struct{}, results map[string]Phase, mu *sync.Mutex) (blocked, canceled bool) {
-	// Shared (external) deps must be ready before this resource starts.
 	for _, ext := range s.graph.ExternalDeps(name) {
 		if !s.extReady(ext) {
 			return true, false
@@ -185,7 +165,6 @@ func (s *Scheduler) gate(ctx context.Context, name string, done map[string]chan 
 	for _, dep := range s.graph.Deps(name) {
 		ch, inRun := done[dep]
 		if !inRun {
-			// Dep outside this run set; require it already healthy.
 			if !s.Phase(dep).OK() {
 				return true, false
 			}
@@ -229,8 +208,6 @@ func (s *Scheduler) startOne(ctx context.Context, name string) Phase {
 		return PhaseFailed
 	}
 
-	// Long-running resources only count as healthy once their probe passes, so
-	// dependents do not start against a not-yet-listening service.
 	if r.Kind != resource.KindTask && s.waitReady != nil && r.Ready.Kind != resource.ProbeNone {
 		if err := s.waitReady(ctx, r, s.env); err != nil {
 			s.set(name, PhaseFailed, err)
@@ -245,8 +222,7 @@ func (s *Scheduler) startOne(ctx context.Context, name string) Phase {
 	return final
 }
 
-// shouldSkip applies runWhen policy. once: skip if already run this worktree.
-// onChange: skip if input hash unchanged since last run.
+// once: skip if already run this worktree. onChange: skip if input hash unchanged since last run.
 func (s *Scheduler) shouldSkip(r *resource.Resource) bool {
 	if s.store == nil {
 		return false
@@ -289,7 +265,6 @@ func (s *Scheduler) terminalFor(r *resource.Resource) Phase {
 func (s *Scheduler) Down(ctx context.Context) error {
 	order := s.graph.TopoOrder()
 	var firstErr error
-	// Reverse topological order so dependents stop before their deps.
 	for i := len(order) - 1; i >= 0; i-- {
 		name := order[i]
 		node, _ := s.graph.Node(name)
@@ -298,8 +273,6 @@ func (s *Scheduler) Down(ctx context.Context) error {
 		if !ok {
 			continue
 		}
-		// Surface the transient so the UI shows healthy → shutting down → stopped
-		// rather than blinking straight to stopped.
 		if s.Phase(name).OK() {
 			s.set(name, PhaseShuttingDown, nil)
 		}

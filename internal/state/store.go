@@ -7,9 +7,6 @@ import (
 	"sync"
 )
 
-// Store is a file-backed implementation of scheduler.RunStore. It records which
-// run-once tasks have executed and the last input hash of onChange tasks, keyed
-// per worktree, so the daemon does not repeat setup work across restarts.
 type Store struct {
 	path string
 
@@ -73,10 +70,6 @@ func (s *Store) SetInputs(worktree, resource, hash string) {
 	s.flush()
 }
 
-// Forget clears the run bookkeeping for a single resource so the next run is
-// not skipped. Used by an explicit restart/trigger of a run-once or onChange
-// resource: the user asked for it to run now, so its "already ran" / last-input
-// records must not suppress it.
 func (s *Store) Forget(worktree, resource string) {
 	k := key(worktree, resource)
 	s.mu.Lock()
@@ -86,8 +79,6 @@ func (s *Store) Forget(worktree, resource string) {
 	s.flush()
 }
 
-// Reset clears bookkeeping for one worktree, forcing run-once tasks to run
-// again. Used by `pando up --force`.
 func (s *Store) Reset(worktree string) {
 	s.mu.Lock()
 	prefix := worktree + "\x00"
@@ -105,8 +96,6 @@ func (s *Store) Reset(worktree string) {
 	s.flush()
 }
 
-// flush writes atomically via a temp file + rename so a crash mid-write cannot
-// corrupt the state file.
 func (s *Store) flush() {
 	s.mu.Lock()
 	b, err := json.MarshalIndent(s.data, "", "  ")

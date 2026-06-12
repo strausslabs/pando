@@ -12,8 +12,6 @@ var validate = newValidator()
 
 func newValidator() *validator.Validate {
 	v := validator.New(validator.WithRequiredStructEnabled())
-	// Kind-conditional spec presence cannot be expressed with field tags alone,
-	// so it is enforced at the struct level.
 	v.RegisterStructValidation(resourceStructValidation, Resource{})
 	return v
 }
@@ -45,13 +43,10 @@ func (r *Resource) Validate() error {
 
 func (s *Stack) Validate() error { return s.ValidateExternal(nil) }
 
-// ValidateExternal validates the stack, treating names in `external` as
-// satisfiable dependencies that live outside this stack (shared resources).
 func (s *Stack) ValidateExternal(external map[string]bool) error {
 	if err := validate.Struct(s); err != nil {
 		return friendly(err)
 	}
-	// Relational checks need the whole resource set, so they stay hand-rolled.
 	seen := make(map[string]bool, len(s.Resources))
 	for _, r := range s.Resources {
 		if seen[r.Name] {

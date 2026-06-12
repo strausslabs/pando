@@ -17,9 +17,6 @@ import (
 	"github.com/guyStrauss/pando/internal/worktree"
 )
 
-// Execer runs a one-shot command inside a started resource (container or host
-// process) for the Exec API. Backends implement it; the process and compose
-// executors both satisfy it.
 type Execer interface {
 	Exec(ctx context.Context, worktree, resource string, cmd []string, env scheduler.Env) (api.ExecResult, error)
 }
@@ -40,8 +37,6 @@ type Config struct {
 	Clock     func() time.Time
 }
 
-// Engine owns the live state for every active worktree: its compiled graph,
-// scheduler, resolved ports, and last-known phases. It implements api.StackOps.
 type Engine struct {
 	cfg Config
 
@@ -59,7 +54,7 @@ type activeStack struct {
 	errs   map[string]string
 
 	mu             sync.Mutex
-	nextRun        map[string]time.Time // periodic resource -> next fire time
+	nextRun        map[string]time.Time
 	periodicCancel context.CancelFunc
 	live           *liveWatcher
 }
@@ -71,12 +66,7 @@ func New(cfg Config) *Engine {
 	return &Engine{cfg: cfg, stacks: map[string]*activeStack{}}
 }
 
-// Register compiles a stack for a worktree and prepares its scheduler without
-// starting anything. Ports are allocated deterministically from the worktree
-// path and the resource set.
 func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
-	// Hoist shared singletons into the daemon-level shared stack; the worktree
-	// keeps only its own resources and references shared ones as external deps.
 	sharedRes, localRes := partitionShared(stack)
 	if err := e.mergeShared(sharedRes); err != nil {
 		return err
@@ -89,8 +79,6 @@ func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
 		return err
 	}
 	ports := e.cfg.Allocator.Allocate(wt.Path, resourceNames(local))
-	// Merge shared ports so a local resource can reach a shared dep via
-	// $PORT_<name>; local ports win on the rare name clash.
 	for name, p := range e.sharedPorts() {
 		if _, ok := ports[name]; !ok {
 			ports[name] = p
@@ -128,8 +116,6 @@ func (e *Engine) newScheduler(slug string, g *dag.Graph, env scheduler.Env, as *
 		OnState:   e.stateHandler(slug, as),
 		WaitReady: e.waitReady,
 	}
-	// Worktree stacks gate on shared-resource readiness; the shared stack itself
-	// has no external deps.
 	if slug != sharedSlug {
 		opts.ExternalReady = e.sharedReady
 	}
@@ -144,11 +130,6 @@ func resourceNames(stack *resource.Stack) []string {
 	return names
 }
 
-// Reload swaps in a new stack definition for an already-registered worktree and
-// re-runs only what changed. Removed resources are stopped; unchanged healthy
-// resources keep running and seed the new scheduler; added and changed
-// resources (plus their dependents) are re-run. This is the surgical config
-// hot-reload: no full teardown.
 func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) error {
 	e.mu.Lock()
 	as, ok := e.stacks[slug]
@@ -167,14 +148,11 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 	}
 	diff := resource.DiffStacks(old, next)
 
-	// Nothing changed: keep the running stack untouched. Swapping it would
-	// orphan in-flight executor goroutines that still hold the old activeStack,
-	// dropping their final phase updates (e.g. a task settling to done).
+	// No-op early-return required: swapping an unchanged stack orphans in-flight executor goroutines holding the old activeStack, dropping their final phase updates.
 	if len(diff.Added) == 0 && len(diff.Changed) == 0 && len(diff.Removed) == 0 {
 		return nil
 	}
 
-	// Stop resources that no longer exist, before swapping the graph.
 	for _, name := range diff.Removed {
 		if r, found := old.Get(name); found {
 			if exec, ok := e.cfg.Executors[r.Kind]; ok {
@@ -198,8 +176,6 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 	}
 	newAS.sched = e.newScheduler(slug, g, env, newAS)
 
-	// Carry forward phases for resources that survive unchanged so their
-	// dependents see them as satisfied without re-running.
 	changed := markSet(diff.Added, diff.Changed)
 	seed := map[string]scheduler.Phase{}
 	for _, r := range next.Resources {
@@ -230,8 +206,6 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 	return newAS.sched.UpSubset(ctx, dirty...)
 }
 
-// Deregister stops everything for a worktree and forgets it. Used when a git
-// worktree is removed.
 func (e *Engine) Deregister(ctx context.Context, slug string) error {
 	e.mu.Lock()
 	as, ok := e.stacks[slug]
@@ -316,8 +290,6 @@ func (e *Engine) Up(ctx context.Context, slug string, force bool) error {
 	if force {
 		e.cfg.Store.Reset(slug)
 	}
-	// Shared deps must be up before a dependent worktree starts; bring the
-	// shared stack to ready first (idempotent — already-healthy resources skip).
 	if slug != sharedSlug {
 		if err := e.ensureSharedUp(ctx); err != nil {
 			return err
@@ -339,9 +311,6 @@ func (e *Engine) Down(ctx context.Context, slug string) error {
 	return as.sched.Down(ctx)
 }
 
-// Shutdown brings every registered stack down. Called on daemon exit so local
-// processes (which run in their own process groups and outlive the daemon
-// otherwise) are stopped and their ports freed, rather than orphaned.
 func (e *Engine) Shutdown(ctx context.Context) {
 	e.mu.RLock()
 	slugs := make([]string, 0, len(e.stacks))
@@ -362,8 +331,6 @@ func (e *Engine) Restart(ctx context.Context, slug, name string) error {
 	if _, ok := as.stack.Get(name); !ok {
 		return fmt.Errorf("resource %q not found in worktree %q", name, slug)
 	}
-	// Clear run-once/onChange bookkeeping so an explicit restart of an
-	// already-run resource is not skipped by shouldSkip.
 	if e.cfg.Store != nil {
 		e.cfg.Store.Forget(slug, name)
 	}
@@ -378,9 +345,6 @@ func (e *Engine) Trigger(ctx context.Context, slug, name string) error {
 	return e.Restart(ctx, slug, name)
 }
 
-// sortedSlugs returns the registered worktree slugs ordered by branch name (the
-// label the UI shows), so worktrees list deterministically rather than in Go
-// map order. Slug breaks ties when two worktrees share a branch name.
 func (e *Engine) sortedSlugs() []string {
 	slugs := make([]string, 0, len(e.stacks))
 	for slug := range e.stacks {

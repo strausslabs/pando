@@ -5,9 +5,6 @@ import (
 	"time"
 )
 
-// StackOps is the single set of operations every face (CLI, web UI, MCP) calls.
-// Defining it once keeps the daemon, clients, and agent adapter in lockstep:
-// add a backend and every face gets it; add a face and it speaks this contract.
 type StackOps interface {
 	Status(ctx context.Context) ([]WorktreeStatus, error)
 	Logs(ctx context.Context, q LogQuery) ([]LogLine, error)
@@ -36,20 +33,14 @@ type ResourceStatus struct {
 	Port  int    `json:"port,omitempty"`
 	Error string `json:"error,omitempty"`
 
-	// Live footprint, zero when not measured. MemBytes is RSS for host processes,
-	// container memory for compose resources.
 	MemBytes   uint64  `json:"memBytes,omitempty"`
 	CPUPercent float64 `json:"cpuPercent,omitempty"`
 
-	// MemLimitBytes is the declared hard memory limit (compose `memory`), zero
-	// when unbounded.
 	MemLimitBytes int64 `json:"memLimitBytes,omitempty"`
 
-	// Periodic schedule, zero when the resource is not periodic.
 	EverySeconds int64 `json:"everySeconds,omitempty"`
 	NextRunUnix  int64 `json:"nextRunUnix,omitempty"`
 
-	// Preview is true for web resources the dashboard renders as a live iframe.
 	Preview bool `json:"preview,omitempty"`
 }
 

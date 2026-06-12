@@ -20,10 +20,6 @@ interface Props {
   onSnapChange: (snap: boolean) => void;
 }
 
-// Only the most recent RENDER_CAP lines are mounted. The store retains far more
-// (searchable via query), but a multi-day session never grows the DOM past this
-// bound — the key to staying smooth over long runs. Variable-height rows
-// (wrapped text, pretty JSON) are fine because there is no windowing math.
 const RENDER_CAP = 800;
 
 export function LogView({ lines, query, showResource, version, snap, onSnapChange }: Props) {
@@ -33,15 +29,10 @@ export function LogView({ lines, query, showResource, version, snap, onSnapChang
   const filtered = useMemo(() => {
     const matched = query ? lines.filter((l) => matchesQuery(l.text, query)) : lines;
     return matched.length > RENDER_CAP ? matched.slice(matched.length - RENDER_CAP) : matched;
-    // lines mutates in place; depend on version + length.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, query, version, lines.length]);
 
-  // Pin to the tail as new lines land while snap is on. programmatic marks our
-  // own scroll so onScroll does not misread it as the user scrolling away.
-  // Depend on `version` (bumped on every store flush), not filtered.length:
-  // past RENDER_CAP the slice length saturates and would never re-fire, so snap
-  // silently died on any busy log.
+  // Snap depends on `version` (bumped every flush), not filtered.length: past RENDER_CAP the length saturates and snap would silently die on busy logs.
   useEffect(() => {
     const el = scroller.current;
     if (el && snap) {
@@ -74,10 +65,7 @@ export function LogView({ lines, query, showResource, version, snap, onSnapChang
       }}
     >
       {filtered.map((l) => (
-        // Key on worktree+resource+seq, not seq alone: in the merged "all
-        // resources" view two resources can carry the same seq, and a bare seq
-        // key makes React reuse the wrong row's DOM on every re-render (typing a
-        // search) — search highlights then bleed onto the wrong lines.
+        // Key on worktree+resource+seq, not seq alone: in the merged view two resources can share a seq, and a bare seq key makes React reuse the wrong row's DOM.
         <LogRow key={`${bufferKey(l.worktree, l.resource)}\0${l.seq}`} line={l} showResource={showResource} query={query} />
       ))}
     </div>

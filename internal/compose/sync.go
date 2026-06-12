@@ -15,11 +15,6 @@ import (
 	"github.com/guyStrauss/pando/internal/scheduler"
 )
 
-// Sync copies a local file or directory into the running container at
-// containerPath, used by live-update. It tars the local tree (Docker's copy API
-// expects a tar stream) and unpacks it under the parent of containerPath, so a
-// local dir "src" synced to "/app/src" lands exactly there. Implements
-// scheduler.Syncer.
 func (b *Backend) Sync(ctx context.Context, r *resource.Resource, env scheduler.Env, localPath, containerPath string) error {
 	info, err := os.Stat(localPath)
 	if err != nil {
@@ -35,14 +30,10 @@ func (b *Backend) Sync(ctx context.Context, r *resource.Resource, env scheduler.
 	if err := tw.Close(); err != nil {
 		return err
 	}
-	// Unpack under the parent: a tar entry "src/..." extracted at "/app" yields
-	// "/app/src/...", matching containerPath "/app/src".
 	dst := filepath.Dir(containerPath)
 	return b.cli.CopyToContainer(ctx, containerName(env.Project, r.Name), dst, buf, container.CopyToContainerOptions{})
 }
 
-// tarPath writes localPath into tw under the archive name prefix. Directories
-// are walked recursively; symlinks and special files are skipped.
 func tarPath(tw *tar.Writer, localPath, name string, info os.FileInfo) error {
 	if info.IsDir() {
 		entries, err := os.ReadDir(localPath)

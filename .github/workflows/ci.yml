@@ -25,6 +25,15 @@ jobs:
         with:
           bun-version: latest
 
+      # The daemon go:embeds internal/web/dist, which is gitignored. Build the UI
+      # first so the embed has real assets — otherwise vet/test/build fail to
+      # compile on a clean checkout.
+      - name: Build UI
+        working-directory: ui
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
       - name: Verify formatting
         run: |
           unformatted=$(gofmt -l .)
@@ -52,6 +61,15 @@ jobs:
         with:
           go-version: "1.26"
           cache: true
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      # golangci-lint compiles the package, so the go:embed target must exist.
+      - name: Build UI
+        working-directory: ui
+        run: |
+          bun install --frozen-lockfile
+          bun run build
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest

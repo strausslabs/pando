@@ -17,7 +17,6 @@ const (
 	defaultInterval = 500 * time.Millisecond
 )
 
-// LogQuerier lets the logMatch probe inspect a resource's captured output.
 type LogQuerier interface {
 	Text(worktree, resource string) []string
 }
@@ -31,9 +30,6 @@ type Options struct {
 	Dialer     func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
-// Wait blocks until the probe passes, its timeout elapses, or ctx is cancelled.
-// A probe of kind none passes immediately. The poll loop runs at the probe's
-// interval; each attempt is bounded so a hung endpoint cannot stall the loop.
 func Wait(ctx context.Context, p resource.Probe, opts Options) error {
 	if p.Kind == resource.ProbeNone {
 		return nil
@@ -136,8 +132,6 @@ func checkerFor(p resource.Probe, opts Options) (checkFunc, error) {
 		}, nil
 
 	case resource.ProbeExit0:
-		// exit0 readiness is decided by the executor (task exit code), not polled
-		// here; treat as immediately satisfied.
 		return func(context.Context) error { return nil }, nil
 
 	default:

@@ -12,7 +12,6 @@ import { Tree, Mark } from "./Tree";
 import { Shortcuts } from "./Shortcuts";
 import { phaseLabel } from "./phase";
 
-// A log target is either a single resource or every resource in a worktree.
 type Target =
   | { kind: "resource"; worktree: string; resource: string }
   | { kind: "worktree"; worktree: string };
@@ -22,13 +21,12 @@ const DONE = new Set<Phase>(["done", "skipped", "stopped"]);
 export function App() {
   const [stacks, setStacks] = useState<WorktreeStatus[]>([]);
   const [target, setTarget] = useState<Target | null>(null);
-  const [filter, setFilter] = useState(""); // grove search (worktree/resource names)
-  const [logQuery, setLogQuery] = useState(""); // in-log free-text search
+  const [filter, setFilter] = useState("");
+  const [logQuery, setLogQuery] = useState("");
   const [hideDone, setHideDone] = useState(true);
-  const [snap, setSnap] = useState(true); // follow the tail by default
-  const [showPreview, setShowPreview] = useState(true); // prefer the live app over logs
+  const [snap, setSnap] = useState(true);
+  const [showPreview, setShowPreview] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
-  // Transient set of "worktree\0resource" keys flashing from a live-update tick.
   const [flashing, setFlashing] = useState<Set<string>>(() => new Set());
   const flashTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const searchRef = useRef<HTMLInputElement>(null);
@@ -88,8 +86,6 @@ export function App() {
           return;
         case "phase":
           if (ev.phase === undefined) return;
-          // liveUpdating is a transient pulse, not a settled phase: flash the
-          // tile and leave its real phase/color intact.
           if (ev.phase === "liveUpdating") flash(ev.worktree, ev.resource);
           else applyPhase(ev.worktree, ev.resource, ev.phase);
           return;
@@ -104,9 +100,7 @@ export function App() {
       const st = await api.status();
       setStacks(st);
       setTarget((cur) => cur ?? firstResource(st));
-    } catch {
-      /* daemon not up yet; poll retries */
-    }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -115,26 +109,17 @@ export function App() {
     return () => clearInterval(t);
   }, [refresh]);
 
-  // stacksRef lets the backfill read the current resource list without listing
-  // `stacks` as an effect dependency — otherwise every phase update would
-  // re-run the effect and cancel in-flight fetches (which broke the merged
-  // worktree view, where six fetches race against constant phase churn).
+  // stacksRef avoids listing `stacks` as an effect dep, which would cancel in-flight backfill fetches on every phase update.
   const stacksRef = useRef<WorktreeStatus[]>([]);
   stacksRef.current = stacks;
 
-  // Backfill historical logs on selection. Live WS events only carry lines
-  // emitted after the socket connected, so a settled resource (a finished task)
-  // would otherwise show nothing. append() dedups by seq, so backfill and live
-  // lines merge without duplicates.
   useEffect(() => {
     if (!target) return;
     const fetchFor = async (worktree: string, resource: string) => {
       try {
         const logs = await api.logs(worktree, resource, 1000);
         logs.forEach(append);
-      } catch {
-        /* ignore; live stream still works */
-      }
+      } catch {}
     };
     if (target.kind === "resource") {
       fetchFor(target.worktree, target.resource);
@@ -144,9 +129,6 @@ export function App() {
     }
   }, [target, append]);
 
-  // When "hide finished" hides the currently-selected resource, fall back to
-  // the worktree's merged log view rather than stranding the user on a hidden
-  // container's logs.
   useEffect(() => {
     if (!hideDone || target?.kind !== "resource") return;
     const ws = stacks.find((s) => s.worktree === target.worktree);
@@ -166,8 +148,6 @@ export function App() {
 
   const header = useMemo(() => describeTarget(target, stacks), [target, stacks]);
 
-  // A previewable target is a single resource flagged `preview` with a port —
-  // its running web app can be embedded instead of its log stream.
   const previewUrl = useMemo(() => {
     if (target?.kind !== "resource") return null;
     const ws = stacks.find((s) => s.worktree === target.worktree);

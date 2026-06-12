@@ -19,9 +19,6 @@ var runtimeTS string
 //go:embed types.ts
 var typesTS string
 
-// Loader evaluates a pando.config.ts with bun and decodes the emitted spec.
-// bun is used (not an embedded JS engine) so configs get native TypeScript plus
-// real `import`, npm packages, and environment access.
 type Loader struct {
 	bunPath string
 }
@@ -45,10 +42,6 @@ func (l *Loader) LoadFile(ctx context.Context, path string) (*resource.Stack, er
 	return l.run(ctx, filepath.Dir(abs), abs)
 }
 
-// run writes the runtime + a small entrypoint into a temp dir, then evaluates
-// the user config with bun. The entrypoint imports the user config by absolute
-// path so the config's own relative imports still resolve against its real
-// directory.
 func (l *Loader) run(ctx context.Context, configDir, configPath string) (*resource.Stack, error) {
 	tmp, err := os.MkdirTemp("", "pando-config-*")
 	if err != nil {

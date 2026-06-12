@@ -11,9 +11,6 @@ import (
 	"github.com/guyStrauss/pando/internal/logbuf"
 )
 
-// Server exposes a StackOps implementation over HTTP. Operations are plain
-// JSON request/response; the live event stream is a WebSocket at /events. The
-// same handler is mounted on both a Unix socket (CLI) and a TCP listener (UI).
 type Server struct {
 	ops  api.StackOps
 	logs *logbuf.Store
@@ -44,9 +41,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /events", s.handleEvents)
 }
 
-// MountUI serves the given handler for all non-API routes. The API routes are
-// registered with specific patterns, which take precedence over this catch-all
-// in the Go 1.22+ mux, so the UI never shadows an endpoint.
 func (s *Server) MountUI(ui http.Handler) {
 	s.mux.Handle("/", ui)
 }

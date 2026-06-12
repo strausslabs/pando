@@ -12,10 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// resolveWorktree picks the target worktree slug. Explicit --worktree wins;
-// then PANDO_WORKTREE; otherwise it asks the daemon for its registered
-// worktrees and matches the one containing the current directory, falling back
-// to the sole worktree when only one is registered.
 func resolveWorktree(cl *client.Client, flag string) (string, error) {
 	if flag != "" {
 		return flag, nil
