@@ -56,3 +56,16 @@ These apply to **both** the Go backend and the TS frontend.
   (builds into `internal/web/dist` for `go:embed`).
 - Commits go directly on `main`. Do **not** mention Claude / Claude Code or add
   `Co-Authored-By` trailers.
+
+## Development lifecycle
+
+- **Every push to main** runs `ci.yml`: gofmt, vet, `go test -race`, build, and
+  the UI (typecheck + bun test). This is the gate; it publishes nothing.
+- **Daily release** (`release.yml`, cron 09:00 UTC, or manual dispatch): if there
+  are commits since the last `v*` tag it bumps the patch (vX.Y.Z → vX.Y.(Z+1)),
+  cross-compiles `CGO_ENABLED=0` static binaries for darwin/arm64, linux/amd64
+  and linux/arm64 (UI built first so go:embed has assets), and cuts a GitHub
+  release with tarballs + checksums. If nothing changed since the last tag, it
+  skips — no empty release.
+- Version is injected via `-ldflags -X main.version=<tag>`; `pando --version`
+  reflects it. Local/dev builds report `dev`.

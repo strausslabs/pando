@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  schedule:
+    - cron: "0 9 * * *" # daily at 09:00 UTC
+  workflow_dispatch: {} # allow a manual release
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need tags + full history to diff since last release
+
+      - name: Decide whether to release
+        id: decide
+        run: |
+          last="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+          if [ -z "$last" ]; then
+            echo "no prior tag; first release"
+            echo "version=v0.1.0" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$(git rev-list "$last"..HEAD)" ]; then
+            echo "no commits since $last; skipping"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # bump patch: vMAJOR.MINOR.PATCH -> vMAJOR.MINOR.(PATCH+1)
+          ver="${last#v}"
+          major="${ver%%.*}"; rest="${ver#*.}"
+          minor="${rest%%.*}"; patch="${rest#*.}"
+          next="v${major}.${minor}.$((patch + 1))"
+          echo "releasing $next (since $last)"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@v5
+        if: steps.decide.outputs.release == 'true'
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - uses: oven-sh/setup-bun@v2
+        if: steps.decide.outputs.release == 'true'
+        with:
+          bun-version: latest
+
+      - name: Build UI (embedded by the binary)
+        if: steps.decide.outputs.release == 'true'
+        working-directory: ui
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Cross-compile binaries
+        if: steps.decide.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.decide.outputs.version }}
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          for target in darwin/arm64 linux/amd64 linux/arm64; do
+            os="${target%/*}"; arch="${target#*/}"
+            out="dist/pando-${os}-${arch}"
+            echo "building $out"
+            GOOS="$os" GOARCH="$arch" go build -trimpath \
+              -ldflags "-s -w -X main.version=${VERSION}" \
+              -o "$out" ./cmd/pando
+            ( cd dist && tar -czf "pando-${os}-${arch}.tar.gz" "pando-${os}-${arch}" )
+          done
+          ( cd dist && sha256sum *.tar.gz > checksums.txt )
+
+      - name: Tag and publish release
+        if: steps.decide.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.decide.outputs.version }}
+        run: |
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --generate-notes \
+            dist/*.tar.gz dist/checksums.txt
