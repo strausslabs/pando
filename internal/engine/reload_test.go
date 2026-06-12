@@ -151,3 +151,57 @@ func TestReloadUnknownWorktreeErrors(t *testing.T) {
 		t.Error("reload of unknown worktree should error")
 	}
 }
+
+func TestReloadKeepsSharedHoistedAndOutOfWorktree(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	if err := eng.Register(wt(), sharedStack()); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	defer eng.Down(ctx, "main")
+	defer eng.Down(ctx, sharedSlug)
+
+	// A hot-reload feeds the FULL stack back in (shared auth + local api) — the
+	// same shape the loader produced at Register. Reload must partition shared
+	// the same way Register does: auth stays in the shared stack, never the
+	// worktree.
+	next := &resource.Stack{Name: "pando", Resources: []*resource.Resource{
+		{Name: "auth", Kind: resource.KindTask, Task: &resource.TaskSpec{Cmd: "echo authed"}, Shared: true, RunWhen: resource.RunOnce},
+		{Name: "api", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "echo api-v2; sleep 30"}, Deps: []string{"auth"}},
+	}}
+	if err := eng.Reload(ctx, "main", next); err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+
+	st, _ := eng.Status(ctx)
+	if findResource(st, "main", "auth") != nil {
+		t.Error("shared 'auth' leaked into the worktree after reload")
+	}
+	if findResource(st, sharedSlug, "auth") == nil {
+		t.Error("shared 'auth' missing from the shared stack after reload")
+	}
+}
+
+func TestReloadAddingSharedDepValidates(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	_ = eng.Register(wt(), stackWith(localR("api", "sleep 30")))
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	defer eng.Down(ctx, "main")
+	defer eng.Down(ctx, sharedSlug)
+
+	// Editing the config to add a shared resource and a dep on it must not fail
+	// validation: the shared name is external to the worktree graph.
+	next := &resource.Stack{Name: "pando", Resources: []*resource.Resource{
+		{Name: "auth", Kind: resource.KindTask, Task: &resource.TaskSpec{Cmd: "echo authed"}, Shared: true, RunWhen: resource.RunOnce},
+		{Name: "api", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}, Deps: []string{"auth"}},
+	}}
+	if err := eng.Reload(ctx, "main", next); err != nil {
+		t.Fatalf("reload adding a shared dep should succeed, got: %v", err)
+	}
+	st, _ := eng.Status(ctx)
+	if findResource(st, sharedSlug, "auth") == nil {
+		t.Error("newly-added shared 'auth' not merged into the shared stack on reload")
+	}
+}

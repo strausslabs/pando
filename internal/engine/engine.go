@@ -67,32 +67,46 @@ func New(cfg Config) *Engine {
 }
 
 func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
-	sharedRes, localRes := partitionShared(stack)
-	if err := e.mergeShared(sharedRes); err != nil {
-		return err
-	}
-	local := &resource.Stack{Name: stack.Name, Resources: localRes}
-
-	external := e.sharedNames()
-	g, err := dag.BuildExternal(local, external)
+	as, err := e.compile(api.WorktreeInfo{Path: wt.Path, Branch: wt.Branch, Head: wt.Head, Slug: wt.Slug}, stack)
 	if err != nil {
 		return err
 	}
-	ports := e.cfg.Allocator.Allocate(wt.Path, resourceNames(local))
+	e.mu.Lock()
+	e.stacks[wt.Slug] = as
+	e.mu.Unlock()
+	return nil
+}
+
+// compile turns a full (possibly shared-bearing) stack into a ready activeStack:
+// shared singletons are hoisted into the _shared stack, the worktree keeps only
+// its own resources with shared deps wired as external gates, and ports are
+// allocated. Register and Reload both go through here so their handling of
+// shared resources can never drift.
+func (e *Engine) compile(info api.WorktreeInfo, stack *resource.Stack) (*activeStack, error) {
+	sharedRes, localRes := partitionShared(stack)
+	if err := e.mergeShared(sharedRes); err != nil {
+		return nil, err
+	}
+	local := &resource.Stack{Name: stack.Name, Resources: localRes}
+
+	g, err := dag.BuildExternal(local, e.sharedNames())
+	if err != nil {
+		return nil, err
+	}
+	ports := e.cfg.Allocator.Allocate(info.Path, resourceNames(local))
 	for name, p := range e.sharedPorts() {
 		if _, ok := ports[name]; !ok {
 			ports[name] = p
 		}
 	}
 	env := scheduler.Env{
-		Worktree: wt.Slug,
-		Project:  worktree.ProjectName(e.cfg.StackName, wt.Slug),
+		Worktree: info.Slug,
+		Project:  worktree.ProjectName(e.cfg.StackName, info.Slug),
 		Ports:    ports,
 		Vars:     map[string]string{},
 	}
-
 	as := &activeStack{
-		info:    api.WorktreeInfo{Path: wt.Path, Branch: wt.Branch, Head: wt.Head, Slug: wt.Slug, Ports: ports},
+		info:    api.WorktreeInfo{Path: info.Path, Branch: info.Branch, Head: info.Head, Slug: info.Slug, Ports: ports},
 		stack:   local,
 		graph:   g,
 		env:     env,
@@ -100,12 +114,8 @@ func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
 		errs:    map[string]string{},
 		nextRun: map[string]time.Time{},
 	}
-	as.sched = e.newScheduler(wt.Slug, g, env, as)
-
-	e.mu.Lock()
-	e.stacks[wt.Slug] = as
-	e.mu.Unlock()
-	return nil
+	as.sched = e.newScheduler(info.Slug, g, env, as)
+	return as, nil
 }
 
 func (e *Engine) newScheduler(slug string, g *dag.Graph, env scheduler.Env, as *activeStack) *scheduler.Scheduler {
@@ -142,11 +152,11 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 	info := as.info
 	e.mu.Unlock()
 
-	g, err := dag.Build(next)
+	newAS, err := e.compile(info, next)
 	if err != nil {
 		return err
 	}
-	diff := resource.DiffStacks(old, next)
+	diff := resource.DiffStacks(old, newAS.stack)
 
 	// No-op early-return required: swapping an unchanged stack orphans in-flight executor goroutines holding the old activeStack, dropping their final phase updates.
 	if len(diff.Added) == 0 && len(diff.Changed) == 0 && len(diff.Removed) == 0 {
@@ -161,24 +171,9 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 		}
 	}
 
-	ports := e.cfg.Allocator.Allocate(info.Path, resourceNames(next))
-	env := as.env
-	env.Ports = ports
-
-	newAS := &activeStack{
-		info:    api.WorktreeInfo{Path: info.Path, Branch: info.Branch, Head: info.Head, Slug: slug, Ports: ports},
-		stack:   next,
-		graph:   g,
-		env:     env,
-		phases:  map[string]scheduler.Phase{},
-		errs:    map[string]string{},
-		nextRun: map[string]time.Time{},
-	}
-	newAS.sched = e.newScheduler(slug, g, env, newAS)
-
 	changed := markSet(diff.Added, diff.Changed)
 	seed := map[string]scheduler.Phase{}
-	for _, r := range next.Resources {
+	for _, r := range newAS.stack.Resources {
 		if changed[r.Name] {
 			continue
 		}
