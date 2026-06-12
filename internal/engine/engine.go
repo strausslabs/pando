@@ -276,9 +276,10 @@ func (e *Engine) stateHandler(slug string, as *activeStack) scheduler.StateFunc 
 	return func(ns scheduler.NodeState) {
 		e.mu.Lock()
 		as.phases[ns.Name] = ns.Phase
-		if ns.Err != nil {
+		switch {
+		case ns.Err != nil:
 			as.errs[ns.Name] = ns.Err.Error()
-		} else {
+		default:
 			delete(as.errs, ns.Name)
 		}
 		e.mu.Unlock()

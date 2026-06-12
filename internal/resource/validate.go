@@ -8,8 +8,6 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-func errorsAs(err error, target any) bool { return errors.As(err, target) }
-
 var validate = newValidator()
 
 func newValidator() *validator.Validate {
@@ -62,7 +60,7 @@ func (s *Stack) ValidateExternal(external map[string]bool) error {
 		seen[r.Name] = true
 	}
 	for _, r := range s.Resources {
-		for _, d := range r.allDeps() {
+		for _, d := range r.AllDeps() {
 			if !seen[d] && !external[d] {
 				return fmt.Errorf("resource %q depends on unknown resource %q", r.Name, d)
 			}
@@ -73,7 +71,7 @@ func (s *Stack) ValidateExternal(external map[string]bool) error {
 
 func friendly(err error) error {
 	var verrs validator.ValidationErrors
-	if !errorsAs(err, &verrs) {
+	if !errors.As(err, &verrs) {
 		return err
 	}
 	msgs := make([]string, 0, len(verrs))

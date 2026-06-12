@@ -34,12 +34,12 @@ func BuildExternal(stack *resource.Stack, external map[string]bool) (*Graph, err
 	g := &Graph{nodes: make(map[string]*Node, len(stack.Resources))}
 	for _, r := range stack.Resources {
 		var deps, ext []string
-		for _, d := range depsOf(r) {
+		for _, d := range r.AllDeps() {
 			if external[d] {
 				ext = append(ext, d)
-			} else {
-				deps = append(deps, d)
+				continue
 			}
+			deps = append(deps, d)
 		}
 		g.nodes[r.Name] = &Node{Resource: r, deps: deps, extDeps: ext}
 	}
@@ -55,23 +55,6 @@ func BuildExternal(stack *resource.Stack, external map[string]bool) (*Graph, err
 	}
 	g.order = order
 	return g, nil
-}
-
-func depsOf(r *resource.Resource) []string {
-	var deps []string
-	deps = append(deps, r.Deps...)
-	if r.Compose != nil {
-		deps = append(deps, r.Compose.DependsOn...)
-	}
-	seen := make(map[string]bool, len(deps))
-	out := deps[:0]
-	for _, d := range deps {
-		if !seen[d] {
-			seen[d] = true
-			out = append(out, d)
-		}
-	}
-	return out
 }
 
 func (g *Graph) Node(name string) (*Node, bool) {

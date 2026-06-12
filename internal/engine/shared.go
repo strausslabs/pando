@@ -27,9 +27,9 @@ func partitionShared(stack *resource.Stack) (shared, local []*resource.Resource)
 	for _, r := range stack.Resources {
 		if r.Shared {
 			shared = append(shared, r)
-		} else {
-			local = append(local, r)
+			continue
 		}
+		local = append(local, r)
 	}
 	return shared, local
 }

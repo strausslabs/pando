@@ -73,6 +73,7 @@ func (s Scope) expand(in string, shell bool) (string, error) {
 			if ok {
 				b.WriteString(val)
 			} else {
+				// Unresolved ${...}: keep the literal so nothing is silently dropped.
 				b.WriteString(in[i : i+2+end+1])
 			}
 			i += 2 + end + 1

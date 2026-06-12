@@ -169,9 +169,10 @@ func containerConfig(r *resource.Resource, env scheduler.Env) (*container.Config
 		}
 		if hc := r.Compose.Healthcheck; hc != nil {
 			test := hc.Test
-			if len(test) == 1 {
+			switch {
+			case len(test) == 1:
 				test = append([]string{"CMD-SHELL"}, test...)
-			} else if len(test) > 1 {
+			case len(test) > 1:
 				test = append([]string{"CMD"}, test...)
 			}
 			cfg.Healthcheck = &container.HealthConfig{

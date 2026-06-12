@@ -138,49 +138,21 @@ func (s *Scheduler) run(ctx context.Context, names []string) error {
 			defer wg.Done()
 			defer close(done[name])
 
-			blocked := false
-			// Shared (external) deps must be ready before this resource starts.
-			for _, ext := range s.graph.ExternalDeps(name) {
-				if !s.extReady(ext) {
-					blocked = true
-					break
-				}
-			}
-			for _, dep := range s.graph.Deps(name) {
-				if blocked {
-					break
-				}
-				if ch, ok := done[dep]; ok {
-					select {
-					case <-ch:
-					case <-ctx.Done():
-						s.set(name, PhaseStopped, ctx.Err())
-						mu.Lock()
-						results[name] = PhaseStopped
-						mu.Unlock()
-						return
-					}
-					mu.Lock()
-					depPhase := results[dep]
-					mu.Unlock()
-					if !depPhase.OK() {
-						blocked = true
-						break
-					}
-				} else {
-					// Dep outside this run set; require it already healthy.
-					if !s.Phase(dep).OK() {
-						blocked = true
-						break
-					}
-				}
+			blocked, canceled := s.gate(ctx, name, done, results, &mu)
+			if canceled {
+				s.set(name, PhaseStopped, ctx.Err())
+				mu.Lock()
+				results[name] = PhaseStopped
+				mu.Unlock()
+				return
 			}
 
 			var phase Phase
-			if blocked {
+			switch {
+			case blocked:
 				phase = PhaseBlocked
 				s.set(name, PhaseBlocked, nil)
-			} else {
+			default:
 				phase = s.startOne(ctx, name)
 			}
 			mu.Lock()
@@ -198,6 +170,40 @@ func (s *Scheduler) run(ctx context.Context, names []string) error {
 
 	wg.Wait()
 	return firstErr
+}
+
+// gate waits for a node's dependencies and reports whether it is blocked (a dep
+// failed/blocked or an external dep is not ready) or canceled (ctx ended while
+// waiting). A node is runnable only when both are false.
+func (s *Scheduler) gate(ctx context.Context, name string, done map[string]chan struct{}, results map[string]Phase, mu *sync.Mutex) (blocked, canceled bool) {
+	// Shared (external) deps must be ready before this resource starts.
+	for _, ext := range s.graph.ExternalDeps(name) {
+		if !s.extReady(ext) {
+			return true, false
+		}
+	}
+	for _, dep := range s.graph.Deps(name) {
+		ch, inRun := done[dep]
+		if !inRun {
+			// Dep outside this run set; require it already healthy.
+			if !s.Phase(dep).OK() {
+				return true, false
+			}
+			continue
+		}
+		select {
+		case <-ch:
+		case <-ctx.Done():
+			return false, true
+		}
+		mu.Lock()
+		depPhase := results[dep]
+		mu.Unlock()
+		if !depPhase.OK() {
+			return true, false
+		}
+	}
+	return false, false
 }
 
 func (s *Scheduler) startOne(ctx context.Context, name string) Phase {

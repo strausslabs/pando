@@ -10,8 +10,6 @@ import (
 	"github.com/guyStrauss/pando/internal/watcher"
 )
 
-func statPath(p string) (os.FileInfo, error) { return os.Stat(p) }
-
 // liveWatcher watches a worktree's source paths and runs each affected
 // resource's liveUpdate pipeline on change. One per active stack; started on Up,
 // stopped on Down/Reload.
@@ -112,7 +110,7 @@ func (as *activeStack) stopLiveUpdate() {
 // path: the path itself if it is a directory, else its parent (fsnotify watches
 // directories, and the matcher resolves events to the parent key).
 func watchDir(p string) string {
-	if fi, err := statPath(p); err == nil && fi.IsDir() {
+	if fi, err := os.Stat(p); err == nil && fi.IsDir() {
 		return p
 	}
 	return filepath.Dir(p)

@@ -161,16 +161,14 @@ func (r *Resource) DefaultRunPolicy() RunPolicy {
 // IsPeriodic reports whether the resource re-runs on a fixed interval.
 func (r *Resource) IsPeriodic() bool { return r.Every > 0 }
 
-func (r *Resource) allDeps() []string {
+// AllDeps returns every dependency name (Deps plus compose dependsOn), deduped.
+func (r *Resource) AllDeps() []string {
 	deps := append([]string(nil), r.Deps...)
 	if r.Compose != nil {
 		deps = append(deps, r.Compose.DependsOn...)
 	}
 	return dedupe(deps)
 }
-
-// AllDeps returns every dependency name (Deps plus compose dependsOn), deduped.
-func (r *Resource) AllDeps() []string { return r.allDeps() }
 
 func (s *Stack) Get(name string) (*Resource, bool) {
 	for _, r := range s.Resources {
