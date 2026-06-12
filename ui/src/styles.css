@@ -329,6 +329,59 @@ body::after {
   font-variant-numeric: tabular-nums;
   opacity: 0.85;
 }
+
+.stem.blighted .stem-branch {
+  color: color-mix(in oklab, var(--wither) 70%, var(--bone));
+}
+.stem-blight-mark {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 0.4rem;
+  border-radius: 50% 50% 50% 0;
+  background: var(--wither);
+  transform: rotate(45deg);
+  vertical-align: middle;
+  animation: blight-pulse 2.6s var(--ease-organic) infinite;
+}
+.stem-blight {
+  margin: 0.1rem 0.4rem 0.5rem;
+  padding: 0.4rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border-left: 2px solid var(--wither);
+  border-radius: 0 6px 6px 0;
+  background: linear-gradient(90deg, color-mix(in oklab, var(--wither) 14%, transparent), transparent 85%);
+}
+.stem-blight-label {
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--wither);
+}
+.stem-blight-msg {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  line-height: 1.35;
+  color: var(--bone-dim);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+@keyframes blight-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--wither) 40%, transparent);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 6px 1px color-mix(in oklab, var(--wither) 35%, transparent);
+  }
+}
 .stem-actions {
   margin-left: auto;
   display: flex;

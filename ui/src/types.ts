@@ -33,6 +33,7 @@ export interface WorktreeStatus {
   worktree: string;
   branch: string;
   head: string;
+  error?: string;
   resources: ResourceStatus[];
 }
 

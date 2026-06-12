@@ -40,8 +40,14 @@ type Config struct {
 type Engine struct {
 	cfg Config
 
-	mu     sync.RWMutex
-	stacks map[string]*activeStack
+	mu         sync.RWMutex
+	stacks     map[string]*activeStack
+	configErrs map[string]configFault
+}
+
+type configFault struct {
+	branch string
+	msg    string
 }
 
 type activeStack struct {
@@ -63,7 +69,46 @@ func New(cfg Config) *Engine {
 	if cfg.Clock == nil {
 		cfg.Clock = time.Now
 	}
-	return &Engine{cfg: cfg, stacks: map[string]*activeStack{}}
+	return &Engine{
+		cfg:        cfg,
+		stacks:     map[string]*activeStack{},
+		configErrs: map[string]configFault{},
+	}
+}
+
+const configResource = "pando.config"
+
+func (e *Engine) ReportConfigError(slug, branch, msg string) {
+	e.mu.Lock()
+	prev, had := e.configErrs[slug]
+	e.configErrs[slug] = configFault{branch: branch, msg: msg}
+	e.mu.Unlock()
+	// Dedup: the reconciler re-reports on every poll tick; stream only on change.
+	if had && prev.msg == msg {
+		return
+	}
+	e.streamConfig(slug, logbuf.Stderr, msg)
+	if e.cfg.Logs != nil {
+		e.cfg.Logs.PublishPhase(slug, configResource, string(scheduler.PhaseFailed))
+	}
+}
+
+func (e *Engine) ClearConfigError(slug string) {
+	e.mu.Lock()
+	_, had := e.configErrs[slug]
+	delete(e.configErrs, slug)
+	e.mu.Unlock()
+	if had {
+		e.streamConfig(slug, logbuf.System, "config recovered")
+	}
+}
+
+func (e *Engine) streamConfig(slug string, stream logbuf.Stream, text string) {
+	if e.cfg.Logs == nil {
+		return
+	}
+	e.cfg.Logs.Append(slug, configResource, stream, text,
+		func() logbuf.Line { return logbuf.Line{Time: e.cfg.Clock()} })
 }
 
 func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
@@ -372,6 +417,9 @@ func (e *Engine) Status(ctx context.Context) ([]api.WorktreeStatus, error) {
 	for _, slug := range e.sortedSlugs() {
 		as := e.stacks[slug]
 		ws := api.WorktreeStatus{Worktree: slug, Branch: as.info.Branch, Head: as.info.Head}
+		if f, ok := e.configErrs[slug]; ok {
+			ws.Error = f.msg
+		}
 		for _, r := range as.stack.Resources {
 			phase := as.phases[r.Name]
 			rs := api.ResourceStatus{
@@ -407,7 +455,22 @@ func (e *Engine) Status(ctx context.Context) ([]api.WorktreeStatus, error) {
 		}
 		out = append(out, ws)
 	}
+	for _, slug := range e.faultedUnregistered() {
+		f := e.configErrs[slug]
+		out = append(out, api.WorktreeStatus{Worktree: slug, Branch: f.branch, Error: f.msg})
+	}
 	return out, nil
+}
+
+func (e *Engine) faultedUnregistered() []string {
+	var slugs []string
+	for slug := range e.configErrs {
+		if _, registered := e.stacks[slug]; !registered {
+			slugs = append(slugs, slug)
+		}
+	}
+	sort.Strings(slugs)
+	return slugs
 }
 
 func (e *Engine) Logs(ctx context.Context, q api.LogQuery) ([]api.LogLine, error) {

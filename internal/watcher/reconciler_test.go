@@ -14,6 +14,7 @@ type fakeEngine struct {
 	registered  map[string]*resource.Stack
 	reloads     map[string]int
 	deregisters []string
+	configErrs  map[string]string
 }
 
 func newFakeEngine() *fakeEngine {
@@ -47,6 +48,20 @@ func (f *fakeEngine) Registered(slug string) bool {
 	return ok
 }
 func (f *fakeEngine) isRegistered(slug string) bool { return f.Registered(slug) }
+
+func (f *fakeEngine) ReportConfigError(slug, branch, msg string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.configErrs == nil {
+		f.configErrs = map[string]string{}
+	}
+	f.configErrs[slug] = msg
+}
+func (f *fakeEngine) ClearConfigError(slug string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.configErrs, slug)
+}
 
 type fakeLoader struct {
 	mu     sync.Mutex
@@ -159,6 +174,48 @@ func TestReloadConfigCallsEngineReload(t *testing.T) {
 	defer eng.mu.Unlock()
 	if eng.reloads["main"] != 1 {
 		t.Errorf("reloadConfig should trigger one engine Reload, got %d", eng.reloads["main"])
+	}
+}
+
+func TestBrokenConfigReportsError(t *testing.T) {
+	eng := newFakeEngine()
+	lister := &fakeLister{}
+	lister.set([]worktree.Worktree{wtree("main")})
+	loader := &fakeLoader{}
+	loader.mu.Lock()
+	loader.err = context.DeadlineExceeded
+	loader.mu.Unlock()
+	r := newReconciler(t, eng, loader, lister)
+
+	r.reconcileWorktrees(context.Background())
+
+	eng.mu.Lock()
+	defer eng.mu.Unlock()
+	if eng.configErrs["main"] == "" {
+		t.Error("broken config on add should report a config error for the worktree")
+	}
+}
+
+func TestRecoveredConfigClearsError(t *testing.T) {
+	eng := newFakeEngine()
+	lister := &fakeLister{}
+	lister.set([]worktree.Worktree{wtree("main")})
+	loader := &fakeLoader{}
+	loader.mu.Lock()
+	loader.err = context.DeadlineExceeded
+	loader.mu.Unlock()
+	r := newReconciler(t, eng, loader, lister)
+	r.reconcileWorktrees(context.Background())
+
+	loader.mu.Lock()
+	loader.err = nil
+	loader.mu.Unlock()
+	r.reloadConfig(context.Background(), "main")
+
+	eng.mu.Lock()
+	defer eng.mu.Unlock()
+	if _, faulted := eng.configErrs["main"]; faulted {
+		t.Error("a clean reload should clear the prior config error")
 	}
 }
 

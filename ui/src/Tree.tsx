@@ -54,7 +54,7 @@ const TIPS = [
 
 export function Mark({ size = 26 }: { size?: number }) {
   return (
-    <svg className="mark" width={size} height={size} viewBox="0 0 64 64" fill="none" role="img" aria-label="Pando">
+    <svg className="mark" width={size} height={size} viewBox="0 7 64 64" fill="none" role="img" aria-label="Pando">
       <defs>
         <linearGradient id="markStem" x1="0" y1="54" x2="0" y2="14">
           <stop offset="0" stopColor="#14b8a6" />

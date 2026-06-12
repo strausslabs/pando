@@ -48,6 +48,7 @@ type WorktreeStatus struct {
 	Worktree  string           `json:"worktree"`
 	Branch    string           `json:"branch"`
 	Head      string           `json:"head"`
+	Error     string           `json:"error,omitempty"`
 	Resources []ResourceStatus `json:"resources"`
 }
 

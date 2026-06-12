@@ -102,6 +102,32 @@ describe("Sidebar flash", () => {
   });
 });
 
+describe("Sidebar config blight", () => {
+  test("renders the error message and blight marker when a worktree faults", () => {
+    renderSidebar({
+      stacks: [stack({ worktree: "feat-x", branch: "feat/x", error: "syntax error: unexpected }" })],
+    });
+    expect(screen.getByText("config blight")).toBeDefined();
+    expect(screen.getByText("syntax error: unexpected }")).toBeDefined();
+    expect(document.querySelector(".stem.blighted")).not.toBeNull();
+    expect(document.querySelector(".stem-blight-mark")).not.toBeNull();
+  });
+
+  test("a faulted worktree with zero resources still shows (not filtered away)", () => {
+    renderSidebar({
+      hideDone: true,
+      stacks: [stack({ worktree: "feat-x", branch: "feat/x", error: "boom", resources: [] })],
+    });
+    expect(screen.getByText("feat/x")).toBeDefined();
+  });
+
+  test("a healthy worktree shows no blight", () => {
+    renderSidebar({ stacks: [stack({ worktree: "main", resources: [res({ name: "api" })] })] });
+    expect(document.querySelector(".stem.blighted")).toBeNull();
+    expect(screen.queryByText("config blight")).toBeNull();
+  });
+});
+
 describe("Sidebar filtering", () => {
   test("filters resources by name", () => {
     renderSidebar({

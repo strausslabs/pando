@@ -41,7 +41,7 @@ export function Sidebar(props: Props) {
         }
         return { ws, resources };
       })
-      .filter((g) => g.resources.length > 0 || (!filter && g.ws.resources.length === 0));
+      .filter((g) => g.resources.length > 0 || g.ws.error || (!filter && g.ws.resources.length === 0));
   }, [stacks, filter, hideDone]);
 
   const hiddenCount = useMemo(() => {
@@ -121,13 +121,14 @@ const StemGroup = memo(function StemGroup({
 }) {
   const allSelected = target?.kind === "worktree" && target.worktree === ws.worktree;
   return (
-    <section className="stem">
+    <section className={`stem ${ws.error ? "blighted" : ""}`}>
       <header className="stem-head">
         <button
           className={`stem-branch ${allSelected ? "active" : ""}`}
           onClick={() => onSelect({ kind: "worktree", worktree: ws.worktree })}
           title="show all logs from this worktree"
         >
+          {ws.error ? <span className="stem-blight-mark" aria-hidden /> : null}
           {ws.branch || ws.worktree}
         </button>
         {ws.head ? (
@@ -144,6 +145,12 @@ const StemGroup = memo(function StemGroup({
           </button>
         </div>
       </header>
+      {ws.error ? (
+        <div className="stem-blight" role="alert" title={ws.error}>
+          <span className="stem-blight-label">config blight</span>
+          <span className="stem-blight-msg">{ws.error}</span>
+        </div>
+      ) : null}
       <ul className="leaves">
         {resources.map((r) => {
           const selected =

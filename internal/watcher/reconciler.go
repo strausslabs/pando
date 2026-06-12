@@ -18,6 +18,8 @@ type Engine interface {
 	Reload(ctx context.Context, slug string, next *resource.Stack) error
 	Deregister(ctx context.Context, slug string) error
 	Registered(slug string) bool
+	ReportConfigError(slug, branch, msg string)
+	ClearConfigError(slug string)
 }
 
 type ConfigLoader interface {
@@ -151,13 +153,22 @@ func (r *Reconciler) addWorktree(ctx context.Context, wt worktree.Worktree) {
 	cfg := r.configPath(wt)
 	stack, err := r.loader.LoadFile(ctx, cfg)
 	if err != nil {
+		r.eng.ReportConfigError(wt.Slug, wt.Branch, err.Error())
 		r.opts.OnError(fmt.Errorf("worktree %q config: %w", wt.Slug, err))
+		// Watch the dir anyway so a later fix is picked up.
+		_ = r.w.Add(filepath.Dir(cfg), "cfg:"+wt.Slug)
+		r.mu.Lock()
+		r.tracked[wt.Slug] = wt
+		r.configOf["cfg:"+wt.Slug] = wt.Slug
+		r.mu.Unlock()
 		return
 	}
 	if err := r.eng.Register(wt, stack); err != nil {
+		r.eng.ReportConfigError(wt.Slug, wt.Branch, err.Error())
 		r.opts.OnError(fmt.Errorf("register %q: %w", wt.Slug, err))
 		return
 	}
+	r.eng.ClearConfigError(wt.Slug)
 
 	key := "cfg:" + wt.Slug
 	r.mu.Lock()
@@ -192,16 +203,23 @@ func (r *Reconciler) reloadConfig(ctx context.Context, slug string) {
 	}
 	stack, err := r.loader.LoadFile(ctx, r.configPath(wt))
 	if err != nil {
+		r.eng.ReportConfigError(slug, wt.Branch, err.Error())
 		r.opts.OnError(fmt.Errorf("reload %q config: %w", slug, err))
 		return
 	}
 	if !r.eng.Registered(slug) {
 		if err := r.eng.Register(wt, stack); err != nil {
+			r.eng.ReportConfigError(slug, wt.Branch, err.Error())
 			r.opts.OnError(err)
+			return
 		}
+		r.eng.ClearConfigError(slug)
 		return
 	}
 	if err := r.eng.Reload(ctx, slug, stack); err != nil {
+		r.eng.ReportConfigError(slug, wt.Branch, err.Error())
 		r.opts.OnError(fmt.Errorf("reload %q: %w", slug, err))
+		return
 	}
+	r.eng.ClearConfigError(slug)
 }

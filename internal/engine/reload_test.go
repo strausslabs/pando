@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/guyStrauss/pando/internal/api"
 	"github.com/guyStrauss/pando/internal/resource"
 	"github.com/guyStrauss/pando/internal/scheduler"
 )
@@ -180,6 +181,66 @@ func TestReloadKeepsSharedHoistedAndOutOfWorktree(t *testing.T) {
 	}
 	if findResource(st, sharedSlug, "auth") == nil {
 		t.Error("shared 'auth' missing from the shared stack after reload")
+	}
+}
+
+func TestConfigErrorSurfacesForUnregisteredWorktree(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	ctx := context.Background()
+
+	eng.ReportConfigError("feat-x", "feat/x", "syntax error: unexpected }")
+
+	st, _ := eng.Status(ctx)
+	var ws *api.WorktreeStatus
+	for i := range st {
+		if st[i].Worktree == "feat-x" {
+			ws = &st[i]
+		}
+	}
+	if ws == nil {
+		t.Fatal("faulted worktree missing from status")
+	}
+	if ws.Branch != "feat/x" {
+		t.Errorf("branch = %q, want feat/x", ws.Branch)
+	}
+	if ws.Error == "" {
+		t.Error("config error not surfaced on worktree status")
+	}
+	if !waitForLine(logs, "feat-x", configResource, "syntax error") {
+		t.Error("config error not streamed to the log")
+	}
+}
+
+func TestConfigErrorClearedOnRecovery(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	ctx := context.Background()
+	eng.ReportConfigError("feat-x", "feat/x", "boom")
+	eng.ClearConfigError("feat-x")
+
+	st, _ := eng.Status(ctx)
+	for _, ws := range st {
+		if ws.Worktree == "feat-x" {
+			t.Error("cleared config fault should not appear in status")
+		}
+	}
+}
+
+func TestConfigErrorOnRegisteredWorktreeKeepsResources(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	_ = eng.Register(wt(), stackWith(localR("api", "sleep 30")))
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	defer eng.Down(ctx, "main")
+
+	eng.ReportConfigError("main", "main", "reload failed: bad port")
+
+	st, _ := eng.Status(ctx)
+	main := st[0]
+	if main.Error == "" {
+		t.Error("registered worktree should carry the config error")
+	}
+	if len(main.Resources) == 0 {
+		t.Error("registered worktree keeps its running resources despite a config fault")
 	}
 }
 
