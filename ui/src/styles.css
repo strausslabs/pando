@@ -379,6 +379,29 @@ body::after {
   background: rgba(45, 212, 191, 0.07);
   border-left-color: var(--aspen);
 }
+
+/* One-shot pulse when a resource live-updates: a sweep of amber wash plus a
+   bright left edge, then back to rest. Transient — driven by a self-clearing
+   class, not the stored phase. */
+.leaf-row.flash {
+  animation: leaf-flash 1.1s var(--ease-organic);
+}
+@keyframes leaf-flash {
+  0% {
+    background: rgba(251, 191, 36, 0.32);
+    border-left-color: var(--building);
+    box-shadow: inset 2px 0 0 var(--building);
+  }
+  60% {
+    background: rgba(251, 191, 36, 0.12);
+    border-left-color: var(--building);
+  }
+  100% {
+    background: transparent;
+    border-left-color: transparent;
+    box-shadow: none;
+  }
+}
 .leaf-name {
   font-family: var(--font-display);
   font-weight: 500;

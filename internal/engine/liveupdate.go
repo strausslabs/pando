@@ -22,6 +22,11 @@ import (
 // restart still happens only if a restart step is reached. Returns the first
 // error so callers can surface it.
 func (e *Engine) runLiveUpdate(ctx context.Context, as *activeStack, r *resource.Resource, changed []string) error {
+	// Signal the UI to flash the tile; this is transient and does not change the
+	// resource's scheduler phase (a restart step, if any, drives that).
+	if e.cfg.Logs != nil {
+		e.cfg.Logs.PublishPhase(as.env.Worktree, r.Name, string(scheduler.PhaseLiveUpdating))
+	}
 	for _, step := range r.LiveUpdate {
 		switch {
 		case step.Sync != nil:
@@ -75,8 +80,13 @@ func (e *Engine) liveRun(ctx context.Context, as *activeStack, r *resource.Resou
 	if res.Stdout != "" {
 		e.liveLog(as.env.Worktree, r.Name, "%s", strings.TrimRight(res.Stdout, "\n"))
 	}
+	// Surface stderr even on success: build tools (go, mvn) write warnings and
+	// progress there. Tag it as stderr so the UI styles it like other stderr.
+	if res.Stderr != "" {
+		e.liveLogStream(as.env.Worktree, r.Name, logbuf.Stderr, strings.TrimRight(res.Stderr, "\n"))
+	}
 	if res.ExitCode != 0 {
-		return fmt.Errorf("exit %d: %s", res.ExitCode, strings.TrimRight(res.Stderr, "\n"))
+		return fmt.Errorf("exit %d", res.ExitCode)
 	}
 	return nil
 }
@@ -120,9 +130,13 @@ func matchGlob(pattern, path string) bool {
 }
 
 func (e *Engine) liveLog(worktree, name, format string, args ...any) {
+	e.liveLogStream(worktree, name, logbuf.System, fmt.Sprintf(format, args...))
+}
+
+func (e *Engine) liveLogStream(worktree, name string, stream logbuf.Stream, text string) {
 	if e.cfg.Logs == nil {
 		return
 	}
-	e.cfg.Logs.Append(worktree, name, logbuf.System, fmt.Sprintf(format, args...),
+	e.cfg.Logs.Append(worktree, name, stream, text,
 		func() logbuf.Line { return logbuf.Line{Time: e.cfg.Clock()} })
 }

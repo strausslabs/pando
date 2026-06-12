@@ -410,6 +410,41 @@ func TestRunLiveUpdateRunStepGatedByTrigger(t *testing.T) {
 	}
 }
 
+func TestRunLiveUpdateCapturesRunStderrOnSuccess(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	r := &resource.Resource{
+		Name: "api", Kind: resource.KindLocal,
+		Local: &resource.LocalSpec{Cmd: "sleep 30"},
+		// Succeeds (exit 0) but writes a warning to stderr — must still surface.
+		LiveUpdate: []resource.LiveUpdateStep{
+			{Run: "echo build-warning 1>&2"},
+		},
+	}
+	_ = eng.Register(wt(), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
+	ctx := context.Background()
+	_ = eng.Up(ctx, "main", false)
+	defer eng.Down(ctx, "main")
+	as, _ := eng.lookup("main")
+	lr, _ := as.stack.Get("api")
+
+	if err := eng.runLiveUpdate(ctx, as, lr, []string{"/tmp/demo/main.go"}); err != nil {
+		t.Fatalf("live update: %v", err)
+	}
+	if !waitForLine(logs, "main", "api", "build-warning") {
+		t.Fatal("run step stderr not captured on success")
+	}
+	lines, _ := logs.Query("main", "api", logbuf.Query{})
+	tagged := false
+	for _, l := range lines {
+		if strings.Contains(l.Text, "build-warning") && l.Stream == logbuf.Stderr {
+			tagged = true
+		}
+	}
+	if !tagged {
+		t.Error("run-step stderr should be tagged as the stderr stream")
+	}
+}
+
 func TestRunLiveUpdateRestartReruns(t *testing.T) {
 	eng, logs, _ := testEngine(t)
 	r := &resource.Resource{

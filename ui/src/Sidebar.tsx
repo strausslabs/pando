@@ -39,6 +39,7 @@ interface Props {
   stacks: WorktreeStatus[];
   target: Target | null;
   filter: string;
+  flashing?: Set<string>; // "worktree\0resource" keys pulsing from a live-update
   hideDone: boolean;
   onFilter: (v: string) => void;
   onToggleHideDone: () => void;
@@ -114,6 +115,7 @@ export function Sidebar(props: Props) {
               ws={ws}
               resources={resources}
               target={props.target}
+              flashing={props.flashing}
               onSelect={props.onSelect}
               onUp={props.onUp}
               onDown={props.onDown}
@@ -130,6 +132,7 @@ const StemGroup = memo(function StemGroup({
   ws,
   resources,
   target,
+  flashing,
   onSelect,
   onUp,
   onDown,
@@ -138,6 +141,7 @@ const StemGroup = memo(function StemGroup({
   ws: WorktreeStatus;
   resources: WorktreeStatus["resources"];
   target: Target | null;
+  flashing?: Set<string>;
   onSelect: (t: Target) => void;
   onUp: (w: string) => void;
   onDown: (w: string) => void;
@@ -172,10 +176,11 @@ const StemGroup = memo(function StemGroup({
         {resources.map((r) => {
           const selected =
             target?.kind === "resource" && target.worktree === ws.worktree && target.resource === r.name;
+          const isFlashing = flashing?.has(`${ws.worktree}\0${r.name}`) ?? false;
           return (
             <li
               key={r.name}
-              className={`leaf-row ${selected ? "selected" : ""}`}
+              className={`leaf-row ${selected ? "selected" : ""} ${isFlashing ? "flash" : ""}`}
               data-state={r.phase}
               onClick={() => onSelect({ kind: "resource", worktree: ws.worktree, resource: r.name })}
             >
