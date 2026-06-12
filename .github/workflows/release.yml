@@ -11,6 +11,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,12 +69,15 @@ jobs:
           mkdir -p dist
           for target in darwin/arm64 linux/amd64 linux/arm64; do
             os="${target%/*}"; arch="${target#*/}"
-            out="dist/pando-${os}-${arch}"
-            echo "building $out"
+            stage="build/${os}-${arch}"
+            mkdir -p "$stage"
+            echo "building pando-${os}-${arch}"
+            # binary is named "pando" inside the tarball so the brew formula can
+            # do a plain bin.install "pando".
             GOOS="$os" GOARCH="$arch" go build -trimpath \
               -ldflags "-s -w -X main.version=${VERSION}" \
-              -o "$out" ./cmd/pando
-            ( cd dist && tar -czf "pando-${os}-${arch}.tar.gz" "pando-${os}-${arch}" )
+              -o "$stage/pando" ./cmd/pando
+            tar -czf "dist/pando-${os}-${arch}.tar.gz" -C "$stage" pando
           done
           ( cd dist && sha256sum *.tar.gz > checksums.txt )
 
@@ -88,3 +93,61 @@ jobs:
             --title "$VERSION" \
             --generate-notes \
             dist/*.tar.gz dist/checksums.txt
+
+      # Regenerate the Homebrew formula and push it to the tap repo so
+      # `brew upgrade` tracks every daily release. Needs a TAP_TOKEN secret: a PAT
+      # with contents:write on guyStrauss/homebrew-pando.
+      - name: Update Homebrew tap
+        if: steps.decide.outputs.release == 'true' && env.TAP_TOKEN != ''
+        env:
+          VERSION: ${{ steps.decide.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          sha() { awk -v f="$1" '$2==f {print $1}' dist/checksums.txt; }
+          dar_arm="$(sha pando-darwin-arm64.tar.gz)"
+          lnx_amd="$(sha pando-linux-amd64.tar.gz)"
+          lnx_arm="$(sha pando-linux-arm64.tar.gz)"
+          base="https://github.com/${REPO}/releases/download/${VERSION}"
+
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/${REPO%/*}/homebrew-pando.git" tap
+          mkdir -p tap/Formula
+          cat > tap/Formula/pando.rb <<EOF
+          class Pando < Formula
+            desc "Fast multi-worktree dev environments"
+            homepage "https://github.com/${REPO}"
+            version "${VERSION#v}"
+
+            on_macos do
+              on_arm do
+                url "${base}/pando-darwin-arm64.tar.gz"
+                sha256 "${dar_arm}"
+              end
+            end
+
+            on_linux do
+              on_intel do
+                url "${base}/pando-linux-amd64.tar.gz"
+                sha256 "${lnx_amd}"
+              end
+              on_arm do
+                url "${base}/pando-linux-arm64.tar.gz"
+                sha256 "${lnx_arm}"
+              end
+            end
+
+            def install
+              bin.install "pando"
+            end
+
+            test do
+              assert_match "pando version", shell_output("#{bin}/pando --version")
+            end
+          end
+          EOF
+
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/pando.rb
+          git commit -m "pando ${VERSION}" || { echo "no formula change"; exit 0; }
+          git push

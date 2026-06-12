@@ -69,3 +69,8 @@ These apply to **both** the Go backend and the TS frontend.
   skips — no empty release.
 - Version is injected via `-ldflags -X main.version=<tag>`; `pando --version`
   reflects it. Local/dev builds report `dev`.
+- **Homebrew tap.** Each release regenerates `Formula/pando.rb` and pushes it to
+  the `guyStrauss/homebrew-pando` repo, so `brew install guyStrauss/pando/pando`
+  always tracks the latest release. One-time setup: create that repo, and add a
+  `TAP_TOKEN` secret (a PAT with contents:write on it) to this repo. Without the
+  secret the tap step no-ops; the release still publishes.
