@@ -63,7 +63,12 @@ func parsePorcelain(out string) []Worktree {
 		case cur == nil:
 			continue
 		case strings.HasPrefix(line, "HEAD "):
-			cur.Head = strings.TrimPrefix(line, "HEAD ")
+			head := strings.TrimPrefix(line, "HEAD ")
+			// An unborn branch (fresh repo, no commits) reports the all-zero SHA;
+			// treat that as "no head" so the UI shows nothing rather than 0000…
+			if strings.Trim(head, "0") != "" {
+				cur.Head = head
+			}
 		case strings.HasPrefix(line, "branch "):
 			ref := strings.TrimPrefix(line, "branch ")
 			cur.Branch = strings.TrimPrefix(ref, "refs/heads/")

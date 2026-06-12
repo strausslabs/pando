@@ -12,13 +12,13 @@ import (
 
 func TestDebounceCoalesces(t *testing.T) {
 	var fires int32
-	w, err := New(80*time.Millisecond, func(string) { atomic.AddInt32(&fires, 1) })
+	w, err := New(80*time.Millisecond, func(string, []string) { atomic.AddInt32(&fires, 1) })
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Hammer the same key; should collapse to a single fire.
 	for i := 0; i < 10; i++ {
-		w.schedule("k")
+		w.schedule("k", "")
 		time.Sleep(5 * time.Millisecond)
 	}
 	time.Sleep(150 * time.Millisecond)
@@ -30,13 +30,13 @@ func TestDebounceCoalesces(t *testing.T) {
 func TestSeparateKeysFireSeparately(t *testing.T) {
 	var mu sync.Mutex
 	seen := map[string]int{}
-	w, _ := New(40*time.Millisecond, func(k string) {
+	w, _ := New(40*time.Millisecond, func(k string, _ []string) {
 		mu.Lock()
 		seen[k]++
 		mu.Unlock()
 	})
-	w.schedule("a")
-	w.schedule("b")
+	w.schedule("a", "")
+	w.schedule("b", "")
 	time.Sleep(120 * time.Millisecond)
 	mu.Lock()
 	defer mu.Unlock()
@@ -52,7 +52,7 @@ func TestWatchFileChangeFires(t *testing.T) {
 		t.Fatal(err)
 	}
 	fired := make(chan string, 4)
-	w, err := New(50*time.Millisecond, func(k string) { fired <- k })
+	w, err := New(50*time.Millisecond, func(k string, _ []string) { fired <- k })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,8 +78,46 @@ func TestWatchFileChangeFires(t *testing.T) {
 	}
 }
 
+func TestFireCarriesChangedPaths(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "version.txt")
+	if err := os.WriteFile(file, []byte("v1"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan []string, 4)
+	w, err := New(50*time.Millisecond, func(_ string, paths []string) { got <- paths })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Add(dir, "app"); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go w.Run(ctx)
+
+	time.Sleep(50 * time.Millisecond)
+	if err := os.WriteFile(file, []byte("v2"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case paths := <-got:
+		found := false
+		for _, p := range paths {
+			if filepath.Base(p) == "version.txt" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("fire should carry the changed file path, got %v", paths)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("watcher did not fire")
+	}
+}
+
 func TestMatchPrefersExactThenDir(t *testing.T) {
-	w, _ := New(10*time.Millisecond, func(string) {})
+	w, _ := New(10*time.Millisecond, func(string, []string) {})
 	dir := t.TempDir()
 	exact := filepath.Join(dir, "exact.ts")
 	_ = w.Add(exact, "exact-key")

@@ -67,14 +67,18 @@ func (e *Engine) startLiveUpdate(as *activeStack) {
 	}
 
 	lw := &liveWatcher{}
-	w, err := watcher.New(300*time.Millisecond, func(key string) {
+	w, err := watcher.New(300*time.Millisecond, func(key string, paths []string) {
 		r, ok := owner[key]
 		if !ok {
 			return
 		}
+		// Fall back to the watched dir if fsnotify gave no concrete path (rare).
+		if len(paths) == 0 {
+			paths = []string{key}
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		_ = e.runLiveUpdate(ctx, as, r, []string{key})
+		_ = e.runLiveUpdate(ctx, as, r, paths)
 	})
 	if err != nil {
 		e.liveLog(as.env.Worktree, "", "live-update watcher failed: %v", err)

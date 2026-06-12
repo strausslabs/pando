@@ -23,13 +23,17 @@ type Watcher struct {
 	fsw      *fsnotify.Watcher
 	debounce time.Duration
 
-	mu     sync.Mutex
-	keyOf  map[string]string
-	timers map[string]*time.Timer
-	onFire func(key string)
+	mu      sync.Mutex
+	keyOf   map[string]string
+	timers  map[string]*time.Timer
+	changed map[string]map[string]bool // key -> set of changed file paths
+	onFire  func(key string, paths []string)
 }
 
-func New(debounce time.Duration, onFire func(key string)) (*Watcher, error) {
+// onFire receives the logical key plus the concrete file paths that changed in
+// the debounce window (so callers can match trigger globs against real files,
+// not just the watched directory).
+func New(debounce time.Duration, onFire func(key string, paths []string)) (*Watcher, error) {
 	fsw, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -39,6 +43,7 @@ func New(debounce time.Duration, onFire func(key string)) (*Watcher, error) {
 		debounce: debounce,
 		keyOf:    map[string]string{},
 		timers:   map[string]*time.Timer{},
+		changed:  map[string]map[string]bool{},
 		onFire:   onFire,
 	}, nil
 }
@@ -83,7 +88,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 				return nil
 			}
 			if key, found := w.match(ev.Name); found {
-				w.schedule(key)
+				w.schedule(key, ev.Name)
 			}
 		case _, ok := <-w.fsw.Errors:
 			if !ok {
@@ -109,17 +114,28 @@ func (w *Watcher) match(path string) (string, bool) {
 	return "", false
 }
 
-func (w *Watcher) schedule(key string) {
+func (w *Watcher) schedule(key, path string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if t, ok := w.timers[key]; ok {
 		t.Stop()
 	}
+	if w.changed[key] == nil {
+		w.changed[key] = map[string]bool{}
+	}
+	if path != "" {
+		w.changed[key][path] = true
+	}
 	w.timers[key] = time.AfterFunc(w.debounce, func() {
 		w.mu.Lock()
 		delete(w.timers, key)
+		paths := make([]string, 0, len(w.changed[key]))
+		for p := range w.changed[key] {
+			paths = append(paths, p)
+		}
+		delete(w.changed, key)
 		w.mu.Unlock()
-		w.onFire(key)
+		w.onFire(key, paths)
 	})
 }
 

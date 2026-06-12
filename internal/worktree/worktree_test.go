@@ -34,6 +34,25 @@ func TestParsePorcelain(t *testing.T) {
 	}
 }
 
+func TestParsePorcelainUnbornBranchHasNoHead(t *testing.T) {
+	// A fresh repo with no commits reports the all-zero SHA for its unborn
+	// branch; Head should be empty so the UI shows nothing rather than 0000…
+	const unborn = `worktree /tmp/fresh
+HEAD 0000000000000000000000000000000000000000
+branch refs/heads/main
+`
+	wts := parsePorcelain(unborn)
+	if len(wts) != 1 {
+		t.Fatalf("want 1 worktree, got %d", len(wts))
+	}
+	if wts[0].Head != "" {
+		t.Errorf("unborn branch should have empty head, got %q", wts[0].Head)
+	}
+	if wts[0].Branch != "main" {
+		t.Errorf("branch should still parse, got %q", wts[0].Branch)
+	}
+}
+
 func TestSlug(t *testing.T) {
 	cases := map[string]string{
 		"main":           "main",

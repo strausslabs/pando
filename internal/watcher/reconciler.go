@@ -106,7 +106,7 @@ func (r *Reconciler) Run(ctx context.Context) error {
 	}
 }
 
-func (r *Reconciler) onFire(key string) {
+func (r *Reconciler) onFire(key string, _ []string) {
 	ctx := context.Background()
 	if key == gitWorktreesKey {
 		r.reconcileWorktrees(ctx)
