@@ -159,10 +159,12 @@ export function App() {
     <div className="app">
       <header className="masthead">
         <span className="brand">
-          <Mark size={26} />
-          <span className="wordmark">pando</span>
+          <Mark />
+          <span className="brand-text">
+            <span className="wordmark">pando</span>
+            <span className="tagline">branch away</span>
+          </span>
         </span>
-        <span className="tagline">branch away</span>
         <span
           className={`conn ${connected ? "live" : ""}`}
           title={connected ? "live log stream connected" : "reconnecting to daemon…"}

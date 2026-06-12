@@ -1,0 +1,44 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pando">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#101d18"/>
+      <stop offset="1" stop-color="#0b1410"/>
+    </linearGradient>
+    <linearGradient id="stem" x1="256" y1="392" x2="256" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#14b8a6"/>
+      <stop offset="1" stop-color="#5eead4"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="256" cy="232" r="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="232" r="190" fill="url(#glow)"/>
+
+  <g stroke="#2c443c" stroke-width="22" stroke-linecap="round" fill="none">
+    <path d="M256 392 Q176 448 128 480"/>
+    <path d="M256 392 Q336 448 384 480"/>
+    <path d="M256 392 L256 488"/>
+  </g>
+
+  <g stroke="url(#stem)" stroke-linecap="round" fill="none">
+    <path d="M256 400 L256 224" stroke-width="40"/>
+    <path d="M256 320 L128 200" stroke-width="31"/>
+    <path d="M256 320 L384 200" stroke-width="31"/>
+    <path d="M256 272 L176 128" stroke-width="28"/>
+    <path d="M256 272 L336 128" stroke-width="28"/>
+    <path d="M256 248 L256 96" stroke-width="28"/>
+  </g>
+
+  <g>
+    <circle cx="128" cy="200" r="33" fill="#4ade80"/>
+    <circle cx="384" cy="200" r="33" fill="#38bdf8"/>
+    <circle cx="176" cy="128" r="28" fill="#2dd4bf"/>
+    <circle cx="336" cy="128" r="28" fill="#5eead4"/>
+    <circle cx="256" cy="96" r="34" fill="#4ade80"/>
+  </g>
+
+  <circle cx="256" cy="392" r="30" fill="#e6efea"/>
+</svg>

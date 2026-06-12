@@ -79,7 +79,7 @@ body::after {
 /* ── Masthead ───────────────────────────────────────────── */
 .masthead {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 1.5rem;
   padding: 1.4rem 2rem 1.1rem;
   border-bottom: 1px solid var(--soil-600);
@@ -100,19 +100,30 @@ body::after {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 1.7rem;
+  line-height: 1;
   letter-spacing: -0.01em;
   color: var(--bone);
   font-optical-sizing: auto;
 }
 .brand {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.7rem;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
 }
 
 /* Masthead mark: the canopy sways from its base like wind through an aspen,
-   tips breathe so the lockup feels alive without distracting. */
+   tips breathe so the lockup feels alive without distracting. Sized in rem so
+   it scales with the type, never a fixed pixel box. */
 .mark {
+  width: 2.6rem;
+  height: 2.6rem;
   overflow: visible;
 }
 .mark-canopy {

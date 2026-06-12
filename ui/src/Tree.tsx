@@ -52,39 +52,40 @@ const TIPS = [
   { x: 100, y: 70, r: 7, c: "#5eead4" },
 ];
 
-export function Mark({ size = 26 }: { size?: number }) {
+export function Mark() {
   return (
-    <svg className="mark" width={size} height={size} viewBox="0 7 64 64" fill="none" role="img" aria-label="Pando">
+    <svg className="mark" viewBox="0 0 64 64" fill="none" role="img" aria-label="Pando">
       <defs>
-        <linearGradient id="markStem" x1="0" y1="54" x2="0" y2="14">
+        <linearGradient id="markStem" x1="0" y1="52" x2="0" y2="13">
           <stop offset="0" stopColor="#14b8a6" />
           <stop offset="1" stopColor="#5eead4" />
         </linearGradient>
       </defs>
 
-      <g stroke="#2c443c" strokeWidth="2.4" strokeLinecap="round" fill="none">
-        <path d="M32 50 Q26 56 21 59" />
-        <path d="M32 50 Q38 56 43 59" />
-        <path d="M32 50 Q32 56 32 61" />
+      <g stroke="#2c443c" strokeWidth="3.6" strokeLinecap="round" fill="none">
+        <path d="M32 51 Q22 58 16 62" />
+        <path d="M32 51 Q42 58 48 62" />
+        <path d="M32 51 L32 63" />
       </g>
 
       <g className="mark-canopy" stroke="url(#markStem)" strokeLinecap="round" fill="none">
-        <path d="M32 50 Q33 38 30 28" strokeWidth="4" />
-        <path d="M31 40 Q24 36 18 30" strokeWidth="3" />
-        <path d="M31 34 Q39 30 45 25" strokeWidth="3" />
-        <path d="M30 30 Q25 24 21 19" strokeWidth="2.6" />
-        <path d="M30 30 Q35 24 39 18" strokeWidth="2.6" />
+        <path d="M32 52 L32 30" strokeWidth="6.5" />
+        <path d="M32 42 L16 27" strokeWidth="5" />
+        <path d="M32 42 L48 27" strokeWidth="5" />
+        <path d="M32 36 L22 18" strokeWidth="4.6" />
+        <path d="M32 36 L42 18" strokeWidth="4.6" />
+        <path d="M32 32 L32 13" strokeWidth="4.6" />
       </g>
 
       <g className="mark-tips">
-        <circle cx="30" cy="28" r="3.6" fill="#5eead4" />
-        <circle cx="18" cy="30" r="3" fill="#4ade80" />
-        <circle cx="45" cy="25" r="3" fill="#38bdf8" />
-        <circle cx="21" cy="19" r="2.6" fill="#2dd4bf" />
-        <circle cx="39" cy="18" r="2.6" fill="#4ade80" />
+        <circle cx="16" cy="27" r="5.4" fill="#4ade80" />
+        <circle cx="48" cy="27" r="5.4" fill="#38bdf8" />
+        <circle cx="22" cy="18" r="4.6" fill="#2dd4bf" />
+        <circle cx="42" cy="18" r="4.6" fill="#5eead4" />
+        <circle cx="32" cy="13" r="5.4" fill="#4ade80" />
       </g>
 
-      <circle cx="32" cy="50" r="3.6" fill="#e6efea" />
+      <circle cx="32" cy="51" r="4.6" fill="#e6efea" />
     </svg>
   );
 }
