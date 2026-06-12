@@ -54,7 +54,7 @@ type Reconciler struct {
 
 func NewReconciler(eng Engine, loader ConfigLoader, lister WorktreeLister, gitCommonDir string, opts Options) (*Reconciler, error) {
 	if opts.ConfigName == "" {
-		opts.ConfigName = "pando.config.ts"
+		opts.ConfigName = "pando.star"
 	}
 	if opts.PollEvery == 0 {
 		opts.PollEvery = 2 * time.Second

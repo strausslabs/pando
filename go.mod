@@ -11,6 +11,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/cobra v1.10.2
+	go.starlark.net v0.0.0-20260522144826-ec58d4b459e2
 )
 
 require (

@@ -2,31 +2,27 @@ package config
 
 import (
 	"context"
-	"os/exec"
 	"testing"
 	"time"
 
 	"github.com/guyStrauss/pando/internal/resource"
 )
 
-func loaderOrSkip(t *testing.T) *Loader {
+func load(t *testing.T, path string) *resource.Stack {
 	t.Helper()
-	if _, err := exec.LookPath("bun"); err != nil {
-		t.Skip("bun not installed; skipping config eval test")
-	}
 	l, err := NewLoader()
 	if err != nil {
 		t.Fatalf("NewLoader: %v", err)
 	}
-	return l
+	stack, err := l.LoadFile(context.Background(), path)
+	if err != nil {
+		t.Fatalf("LoadFile(%s): %v", path, err)
+	}
+	return stack
 }
 
 func TestLoadFixtureStack(t *testing.T) {
-	l := loaderOrSkip(t)
-	stack, err := l.LoadFile(context.Background(), "testdata/pando.config.ts")
-	if err != nil {
-		t.Fatalf("LoadFile: %v", err)
-	}
+	stack := load(t, "testdata/pando.star")
 	if stack.Name != "demo" {
 		t.Errorf("name = %q, want demo", stack.Name)
 	}
@@ -36,11 +32,7 @@ func TestLoadFixtureStack(t *testing.T) {
 }
 
 func TestLoadKindsInferred(t *testing.T) {
-	l := loaderOrSkip(t)
-	stack, err := l.LoadFile(context.Background(), "testdata/pando.config.ts")
-	if err != nil {
-		t.Fatal(err)
-	}
+	stack := load(t, "testdata/pando.star")
 	want := map[string]resource.Kind{
 		"db":       resource.KindCompose,
 		"migrate":  resource.KindTask,
@@ -59,20 +51,17 @@ func TestLoadKindsInferred(t *testing.T) {
 	}
 }
 
-func TestLoadResolvesImportsAndBuildSecrets(t *testing.T) {
-	l := loaderOrSkip(t)
-	stack, err := l.LoadFile(context.Background(), "testdata/pando.config.ts")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// db comes from an imported module; presence proves import resolution.
+func TestLoadHelperAndConditional(t *testing.T) {
+	stack := load(t, "testdata/pando.star")
+	// db comes from a def helper; presence proves functions work.
 	db, ok := stack.Get("db")
 	if !ok || db.Compose == nil || db.Compose.Image != "postgres:16" {
-		t.Fatalf("imported db resource not resolved: %+v", db)
+		t.Fatalf("helper-produced db resource not resolved: %+v", db)
 	}
+	// target uses an if-expression on env.
 	api, _ := stack.Get("api")
 	if api.Build == nil || api.Build.Target != "dev" {
-		t.Errorf("api build target not set from env logic: %+v", api.Build)
+		t.Errorf("api build target not set from conditional: %+v", api.Build)
 	}
 	if len(api.Build.Secrets) != 1 || api.Build.Secrets[0].ID != "zscaler_cert" {
 		t.Errorf("build secret not parsed: %+v", api.Build.Secrets)
@@ -80,11 +69,7 @@ func TestLoadResolvesImportsAndBuildSecrets(t *testing.T) {
 }
 
 func TestLoadParsesRunWhenAndProbe(t *testing.T) {
-	l := loaderOrSkip(t)
-	stack, err := l.LoadFile(context.Background(), "testdata/pando.config.ts")
-	if err != nil {
-		t.Fatal(err)
-	}
+	stack := load(t, "testdata/pando.star")
 	migrate, _ := stack.Get("migrate")
 	if migrate.RunWhen != resource.RunOnce {
 		t.Errorf("migrate runWhen = %q, want once", migrate.RunWhen)
@@ -93,17 +78,13 @@ func TestLoadParsesRunWhenAndProbe(t *testing.T) {
 	if api.Ready.Kind != resource.ProbeHTTPGet {
 		t.Errorf("api probe kind = %q, want httpGet", api.Ready.Kind)
 	}
-	if api.Ready.Timeout.Seconds() != 30 {
+	if api.Ready.Timeout != 30*time.Second {
 		t.Errorf("api probe timeout = %v, want 30s", api.Ready.Timeout)
 	}
 }
 
 func TestLoadParsesLiveUpdate(t *testing.T) {
-	l := loaderOrSkip(t)
-	stack, err := l.LoadFile(context.Background(), "testdata/pando.config.ts")
-	if err != nil {
-		t.Fatal(err)
-	}
+	stack := load(t, "testdata/pando.star")
 	api, _ := stack.Get("api")
 	if len(api.LiveUpdate) != 3 {
 		t.Fatalf("want 3 liveUpdate steps, got %d", len(api.LiveUpdate))
@@ -119,12 +100,8 @@ func TestLoadParsesLiveUpdate(t *testing.T) {
 	}
 }
 
-func TestLoadParsesEveryAndPreview(t *testing.T) {
-	l := loaderOrSkip(t)
-	stack, err := l.LoadFile(context.Background(), "testdata/periodic.config.ts")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestLoadParsesEveryPreviewMemory(t *testing.T) {
+	stack := load(t, "testdata/periodic.star")
 
 	sync, ok := stack.Get("sync")
 	if !ok {
@@ -133,17 +110,11 @@ func TestLoadParsesEveryAndPreview(t *testing.T) {
 	if sync.Every != 30*time.Minute {
 		t.Errorf("sync every = %v, want 30m", sync.Every)
 	}
-	if !sync.IsPeriodic() {
-		t.Error("sync should be periodic")
-	}
 	if sync.DefaultRunPolicy() != resource.RunAlways {
 		t.Errorf("periodic task policy = %q, want always", sync.DefaultRunPolicy())
 	}
 
-	web, ok := stack.Get("web")
-	if !ok {
-		t.Fatal("missing web resource")
-	}
+	web, _ := stack.Get("web")
 	if !web.Preview {
 		t.Error("web should be flagged preview")
 	}
@@ -151,18 +122,56 @@ func TestLoadParsesEveryAndPreview(t *testing.T) {
 		t.Error("sync should not be flagged preview")
 	}
 
-	cache, ok := stack.Get("cache")
-	if !ok {
-		t.Fatal("missing cache resource")
-	}
+	cache, _ := stack.Get("cache")
 	if cache.Compose == nil || cache.Compose.Memory != 256<<20 {
 		t.Errorf("cache memory = %v, want 256m (%d bytes)", cache.Compose, 256<<20)
 	}
 }
 
 func TestLoadMissingFileErrors(t *testing.T) {
-	l := loaderOrSkip(t)
-	if _, err := l.LoadFile(context.Background(), "testdata/nope.config.ts"); err == nil {
+	l, _ := NewLoader()
+	if _, err := l.LoadFile(context.Background(), "testdata/nope.star"); err == nil {
 		t.Fatal("expected error for missing config")
+	}
+}
+
+func TestLoadWithoutDefineStackErrors(t *testing.T) {
+	if _, err := eval(context.Background(), "x.star", []byte(`x = 1`)); err == nil {
+		t.Fatal("config that never calls define_stack should error")
+	}
+}
+
+func TestLoadDurationAndBytesHelpers(t *testing.T) {
+	src := []byte(`
+define_stack(
+    name = "u",
+    services = {
+        "t": service(task = task(cmd = "echo hi"), every = duration("2m")),
+        "c": service(compose = compose(image = "redis", memory = bytes("1g"))),
+    },
+)
+`)
+	raw, err := eval(context.Background(), "u.star", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stack, err := decode(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tsk, _ := stack.Get("t")
+	if tsk.Every != 2*time.Minute {
+		t.Errorf("every = %v, want 2m", tsk.Every)
+	}
+	c, _ := stack.Get("c")
+	if c.Compose.Memory != 1<<30 {
+		t.Errorf("memory = %d, want 1g", c.Compose.Memory)
+	}
+}
+
+func TestLoadUnknownFieldErrors(t *testing.T) {
+	src := []byte(`define_stack(name = "x", services = {"a": service(task = task(cmd = "x"), bogus = 1)})`)
+	if _, err := eval(context.Background(), "x.star", src); err == nil {
+		t.Fatal("unknown service field should error")
 	}
 }

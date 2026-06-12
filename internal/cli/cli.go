@@ -27,7 +27,7 @@ func Execute(version string) error {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&g.socket, "socket", "", "daemon socket path (default: per-repo, auto-discovered)")
-	root.PersistentFlags().StringVarP(&g.config, "config", "f", "pando.config.ts", "path to config file")
+	root.PersistentFlags().StringVarP(&g.config, "config", "f", "pando.star", "path to config file")
 	root.PersistentFlags().BoolVar(&g.json, "json", false, "emit machine-readable JSON (for scripts and agents)")
 	_ = root.PersistentFlags().MarkHidden("socket")
 
