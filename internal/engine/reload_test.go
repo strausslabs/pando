@@ -115,6 +115,9 @@ func TestReloadNoChangeIsNoop(t *testing.T) {
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
+	if !waitForLine(logs, "main", "a", "A") {
+		t.Fatal("resource a never logged its startup line")
+	}
 	before := countLines(logs, "main", "a", "A")
 
 	same := stackWith(localR("a", "echo A; sleep 30"))

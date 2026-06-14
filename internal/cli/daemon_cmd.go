@@ -111,6 +111,16 @@ func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 		Execers:   execers,
 	})
 
+	if tcpAddr == "auto" {
+		tcpAddr = ""
+		if gitDir != "" {
+			tcpAddr = fmt.Sprintf("127.0.0.1:%d", discovery.FreeUIPort(gitDir))
+		}
+	}
+	if tcpAddr != "" {
+		_ = os.Setenv("PANDO_UI_TARGET", "http://"+tcpAddr)
+	}
+
 	mgr := worktree.NewManager()
 	rec, err := watcher.NewReconciler(eng, loader, mgr, gitDir, watcher.Options{
 		ConfigName: filepath.Base(g.config),
@@ -136,12 +146,6 @@ func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 		srv.MountUI(ui)
 	}
 
-	if tcpAddr == "auto" {
-		tcpAddr = ""
-		if gitDir != "" {
-			tcpAddr = fmt.Sprintf("127.0.0.1:%d", discovery.FreeUIPort(gitDir))
-		}
-	}
 	if tcpAddr != "" {
 		go func() {
 			if err := srv.ServeTCP(ctx, tcpAddr); err != nil {
