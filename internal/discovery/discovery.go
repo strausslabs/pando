@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,11 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+)
+
+const (
+	uiBasePort = 7420
+	uiPortSpan = 100
 )
 
 type Info struct {
@@ -35,6 +41,9 @@ func GitCommonDir(ctx context.Context) string {
 	if err != nil {
 		return ""
 	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved
+	}
 	return abs
 }
 
@@ -55,8 +64,37 @@ func SocketPath(gitCommonDir string) string {
 	return filepath.Join(runtimeDir(), repoKey(gitCommonDir)+".sock")
 }
 
+func UIPort(gitCommonDir string) int {
+	sum := sha256.Sum256([]byte(gitCommonDir))
+	off := binary.BigEndian.Uint32(sum[:4]) % uiPortSpan
+	return uiBasePort + int(off)
+}
+
+func FreeUIPort(gitCommonDir string) int {
+	want := UIPort(gitCommonDir)
+	for p := want; p < want+uiPortSpan; p++ {
+		if portFree(p) {
+			return p
+		}
+	}
+	return want
+}
+
+func portFree(port int) bool {
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return false
+	}
+	_ = ln.Close()
+	return true
+}
+
 func infoPath(gitCommonDir string) string {
 	return filepath.Join(runtimeDir(), repoKey(gitCommonDir)+".json")
+}
+
+func LogPath(gitCommonDir string) string {
+	return filepath.Join(runtimeDir(), repoKey(gitCommonDir)+".log")
 }
 
 // EnsureDir creates the per-user runtime dir (0700) that holds the socket and

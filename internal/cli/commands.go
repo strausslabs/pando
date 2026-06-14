@@ -39,8 +39,8 @@ func resolveWorktree(cl *client.Client, flag string) (string, error) {
 }
 
 func pathContains(parent, child string) bool {
-	p, err1 := filepath.Abs(parent)
-	c, err2 := filepath.Abs(child)
+	p, err1 := canonPath(parent)
+	c, err2 := canonPath(child)
 	if err1 != nil || err2 != nil {
 		return false
 	}
@@ -48,14 +48,25 @@ func pathContains(parent, child string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
+func canonPath(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved, nil
+	}
+	return abs, nil
+}
+
 func upCmd(g *globalFlags) *cobra.Command {
 	var worktree string
 	var force bool
 	cmd := &cobra.Command{
 		Use:   "up",
-		Short: "Bring the stack up for a worktree",
+		Short: "Bring the stack up for a worktree (starts the daemon + dashboard if needed)",
 		RunE: func(c *cobra.Command, args []string) error {
-			cl, err := newClient(g)
+			cl, err := ensureClient(g)
 			if err != nil {
 				return err
 			}

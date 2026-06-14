@@ -47,7 +47,14 @@ jobs:
         run: go vet ./...
 
       - name: Test with race detector
-        run: go test -race -count=1 ./...
+        run: go test -race -count=1 -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.out
+          slug: strausslabs/pando
+          fail_ci_if_error: false
 
       - name: Build
         run: go build -o bin/pando ./cmd/pando
