@@ -54,6 +54,7 @@ jobs:
         with:
           files: coverage.out
           slug: strausslabs/pando
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
       - name: Build
