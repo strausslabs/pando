@@ -15,7 +15,7 @@ func (b *Backend) Sample(ctx context.Context, r *resource.Resource, env schedule
 	if err != nil {
 		return scheduler.Usage{}, false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var s container.StatsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {

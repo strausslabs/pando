@@ -97,7 +97,7 @@ func TestEngineUpStatusDown(t *testing.T) {
 	if err := eng.Up(ctx, "main", false); err != nil {
 		t.Fatalf("up: %v", err)
 	}
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 
 	st, err := eng.Status(ctx)
 	if err != nil {
@@ -123,11 +123,11 @@ func TestEngineRunOnceTaskSkipsSecondUp(t *testing.T) {
 	_ = eng.Register(wt(), demoStack())
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	eng.Down(ctx, "main")
+	_ = eng.Down(ctx, "main")
 
 	firstCount := countLines(logs, "main", "setup", "setting-up")
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 	secondCount := countLines(logs, "main", "setup", "setting-up")
 
 	if secondCount != firstCount {
@@ -140,11 +140,11 @@ func TestEngineForceRerunsOnceTask(t *testing.T) {
 	_ = eng.Register(wt(), demoStack())
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	eng.Down(ctx, "main")
+	_ = eng.Down(ctx, "main")
 	before := countLines(logs, "main", "setup", "setting-up")
 
 	_ = eng.Up(ctx, "main", true)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 	after := countLines(logs, "main", "setup", "setting-up")
 	if after <= before {
 		t.Errorf("force should re-run once-task: %d -> %d", before, after)
@@ -158,7 +158,7 @@ func TestEngineRestartRerunsSkippedOnceTask(t *testing.T) {
 	if err := eng.Up(ctx, "main", false); err != nil {
 		t.Fatal(err)
 	}
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 	before := countLines(logs, "main", "setup", "setting-up")
 	if before == 0 {
 		t.Fatal("setup task never ran on first up")
@@ -199,7 +199,7 @@ func TestEnginePeriodicTaskReruns(t *testing.T) {
 	if err := eng.Up(ctx, "main", false); err != nil {
 		t.Fatal(err)
 	}
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 
 	// One run on Up plus at least two ticks within the budget.
 	deadline := time.Now().Add(3 * time.Second)
@@ -222,7 +222,7 @@ func TestEngineDownStopsPeriodicLoop(t *testing.T) {
 	if !waitForLine(logs, "main", "sync", "synced") {
 		t.Fatal("periodic task never ran")
 	}
-	eng.Down(ctx, "main")
+	_ = eng.Down(ctx, "main")
 	settled := countLines(logs, "main", "sync", "synced")
 	// After Down the ticker must be cancelled: no further runs accrue.
 	time.Sleep(300 * time.Millisecond)
@@ -236,7 +236,7 @@ func TestEngineStatusReportsPeriodicSchedule(t *testing.T) {
 	_ = eng.Register(wt(), periodicStack(30*time.Minute))
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 
 	st, _ := eng.Status(ctx)
 	var sync *api.ResourceStatus
@@ -264,7 +264,7 @@ func TestEngineStatusReportsLocalMemory(t *testing.T) {
 	_ = eng.Register(wt(), stack)
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 
 	st, _ := eng.Status(ctx)
 	svc := st[0].Resources[0]
@@ -282,7 +282,7 @@ func TestEngineStatusReportsPreview(t *testing.T) {
 	_ = eng.Register(wt(), stack)
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 
 	st, _ := eng.Status(ctx)
 	preview := map[string]bool{}
@@ -306,8 +306,8 @@ func TestEngineSharedResourceHoistedAndDependentRuns(t *testing.T) {
 	if err := eng.Up(ctx, "main", false); err != nil {
 		t.Fatalf("up: %v", err)
 	}
-	defer eng.Down(ctx, "main")
-	defer eng.Down(ctx, sharedSlug)
+	defer func() { _ = eng.Down(ctx, "main") }()
+	defer func() { _ = eng.Down(ctx, sharedSlug) }()
 
 	st, _ := eng.Status(ctx)
 	// auth lives in the shared stack, not the worktree.
@@ -334,9 +334,9 @@ func TestEngineSharedSingletonAcrossWorktrees(t *testing.T) {
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	_ = eng.Up(ctx, "feat", false)
-	defer eng.Down(ctx, "main")
-	defer eng.Down(ctx, "feat")
-	defer eng.Down(ctx, sharedSlug)
+	defer func() { _ = eng.Down(ctx, "main") }()
+	defer func() { _ = eng.Down(ctx, "feat") }()
+	defer func() { _ = eng.Down(ctx, sharedSlug) }()
 
 	st, _ := eng.Status(ctx)
 	// Exactly one shared stack, with exactly one auth resource, despite two
@@ -403,7 +403,7 @@ func TestRunLiveUpdateRunStepGatedByTrigger(t *testing.T) {
 	_ = eng.Register(wt(), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 	as, _ := eng.lookup("main")
 	lr, _ := as.stack.Get("api")
 
@@ -432,7 +432,7 @@ func TestRunLiveUpdateCapturesRunStderrOnSuccess(t *testing.T) {
 	_ = eng.Register(wt(), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 	as, _ := eng.lookup("main")
 	lr, _ := as.stack.Get("api")
 
@@ -464,7 +464,7 @@ func TestRunLiveUpdateRestartReruns(t *testing.T) {
 	_ = eng.Register(wt(), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 	if !waitForLine(logs, "main", "api", "booting") {
 		t.Fatal("api never booted")
 	}
@@ -507,7 +507,7 @@ func TestEngineExecLocal(t *testing.T) {
 	_ = eng.Register(wt(), stack)
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 
 	res, err := eng.Exec(ctx, apiExecReq())
 	if err != nil {

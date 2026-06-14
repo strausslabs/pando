@@ -134,11 +134,11 @@ func TestContainerConfigSetsMemoryLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if hostCfg.Resources.Memory != 256<<20 {
-		t.Errorf("memory limit = %d, want %d", hostCfg.Resources.Memory, 256<<20)
+	if hostCfg.Memory != 256<<20 {
+		t.Errorf("memory limit = %d, want %d", hostCfg.Memory, 256<<20)
 	}
-	if hostCfg.Resources.MemoryReservation != 256<<20 {
-		t.Errorf("memory reservation = %d, want %d", hostCfg.Resources.MemoryReservation, 256<<20)
+	if hostCfg.MemoryReservation != 256<<20 {
+		t.Errorf("memory reservation = %d, want %d", hostCfg.MemoryReservation, 256<<20)
 	}
 }
 
@@ -151,8 +151,8 @@ func TestContainerConfigNoMemoryLimitByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if hostCfg.Resources.Memory != 0 {
-		t.Errorf("unbounded by default, got memory = %d", hostCfg.Resources.Memory)
+	if hostCfg.Memory != 0 {
+		t.Errorf("unbounded by default, got memory = %d", hostCfg.Memory)
 	}
 }
 
@@ -169,8 +169,8 @@ func TestContainerConfigBadPortErrors(t *testing.T) {
 func TestLogWriterSplitsLines(t *testing.T) {
 	var got []string
 	w := &logWriter{emit: func(s string) { got = append(got, s) }}
-	w.Write([]byte("line one\nline two\npar"))
-	w.Write([]byte("tial done\n"))
+	_, _ = w.Write([]byte("line one\nline two\npar"))
+	_, _ = w.Write([]byte("tial done\n"))
 	if len(got) != 3 {
 		t.Fatalf("want 3 lines, got %d: %v", len(got), got)
 	}

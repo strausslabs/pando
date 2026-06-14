@@ -140,15 +140,15 @@ func containerConfig(r *resource.Resource, env scheduler.Env) (*container.Config
 		hostCfg.PortBindings = bindings
 
 		if r.Compose.Memory > 0 {
-			hostCfg.Resources.Memory = r.Compose.Memory
-			hostCfg.Resources.MemoryReservation = r.Compose.Memory
+			hostCfg.Memory = r.Compose.Memory
+			hostCfg.MemoryReservation = r.Compose.Memory
 		}
 		if r.Compose.CPUs > 0 {
-			hostCfg.Resources.NanoCPUs = int64(r.Compose.CPUs * 1e9)
+			hostCfg.NanoCPUs = int64(r.Compose.CPUs * 1e9)
 		}
 		if r.Compose.PidsLimit > 0 {
 			pl := r.Compose.PidsLimit
-			hostCfg.Resources.PidsLimit = &pl
+			hostCfg.PidsLimit = &pl
 		}
 		if r.Compose.Restart != "" {
 			hostCfg.RestartPolicy = container.RestartPolicy{Name: container.RestartPolicyMode(r.Compose.Restart)}
@@ -202,7 +202,7 @@ func (b *Backend) ensureImage(ctx context.Context, worktree, res, ref string) er
 	if err != nil {
 		return fmt.Errorf("pull %s: %w", ref, err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	_, _ = io.Copy(io.Discard, rc)
 	return nil
 }
@@ -231,7 +231,7 @@ func (b *Backend) followLogs(ctx context.Context, worktree, res, containerID str
 	if err != nil {
 		return
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 	_, _ = stdcopy.StdCopy(
 		b.lineWriter(worktree, res, logbuf.Stdout),
 		b.lineWriter(worktree, res, logbuf.Stderr),

@@ -24,7 +24,7 @@ func (b *Backend) Sync(ctx context.Context, r *resource.Resource, env scheduler.
 	tw := tar.NewWriter(buf)
 	base := filepath.Base(containerPath)
 	if err := tarPath(tw, localPath, base, info); err != nil {
-		tw.Close()
+		_ = tw.Close()
 		return err
 	}
 	if err := tw.Close(); err != nil {
@@ -66,7 +66,7 @@ func tarPath(tw *tar.Writer, localPath, name string, info os.FileInfo) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_, err = io.Copy(tw, f)
 	return err
 }

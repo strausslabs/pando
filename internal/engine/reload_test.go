@@ -30,7 +30,7 @@ func TestReloadRerunsOnlyChanged(t *testing.T) {
 	if err := eng.Up(ctx, "main", false); err != nil {
 		t.Fatal(err)
 	}
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 
 	// Wait for a's startup output to flush before snapshotting, so a delayed
 	// first-run log is not mistaken for a re-run.
@@ -68,7 +68,7 @@ func TestReloadStopsRemovedResource(t *testing.T) {
 	_ = eng.Register(wt(), first)
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 
 	next := stackWith(localR("a", "sleep 30"))
 	if err := eng.Reload(ctx, "main", next); err != nil {
@@ -87,7 +87,7 @@ func TestReloadAddsNewResource(t *testing.T) {
 	_ = eng.Register(wt(), stackWith(localR("a", "sleep 30")))
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 
 	next := stackWith(localR("a", "sleep 30"), localR("c", "echo C-new; sleep 30"))
 	if err := eng.Reload(ctx, "main", next); err != nil {
@@ -114,7 +114,7 @@ func TestReloadNoChangeIsNoop(t *testing.T) {
 	_ = eng.Register(wt(), s)
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 	before := countLines(logs, "main", "a", "A")
 
 	same := stackWith(localR("a", "echo A; sleep 30"))
@@ -160,8 +160,8 @@ func TestReloadKeepsSharedHoistedAndOutOfWorktree(t *testing.T) {
 	}
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
-	defer eng.Down(ctx, sharedSlug)
+	defer func() { _ = eng.Down(ctx, "main") }()
+	defer func() { _ = eng.Down(ctx, sharedSlug) }()
 
 	// A hot-reload feeds the FULL stack back in (shared auth + local api) — the
 	// same shape the loader produced at Register. Reload must partition shared
@@ -218,8 +218,8 @@ func TestConfigErrorIsScopedToWorktree(t *testing.T) {
 	_ = eng.Register(wt2(), stackWith(localR("api", "sleep 30"))) // feat, healthy
 	_ = eng.Up(ctx, "main", false)
 	_ = eng.Up(ctx, "feat", false)
-	defer eng.Down(ctx, "main")
-	defer eng.Down(ctx, "feat")
+	defer func() { _ = eng.Down(ctx, "main") }()
+	defer func() { _ = eng.Down(ctx, "feat") }()
 
 	// feat's config breaks; main must stay clean.
 	eng.ReportConfigError("feat", "feat", "bad config in feat")
@@ -264,7 +264,7 @@ func TestConfigErrorOnRegisteredWorktreeKeepsResources(t *testing.T) {
 	_ = eng.Register(wt(), stackWith(localR("api", "sleep 30")))
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
+	defer func() { _ = eng.Down(ctx, "main") }()
 
 	eng.ReportConfigError("main", "main", "reload failed: bad port")
 
@@ -283,8 +283,8 @@ func TestReloadAddingSharedDepValidates(t *testing.T) {
 	_ = eng.Register(wt(), stackWith(localR("api", "sleep 30")))
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
-	defer eng.Down(ctx, "main")
-	defer eng.Down(ctx, sharedSlug)
+	defer func() { _ = eng.Down(ctx, "main") }()
+	defer func() { _ = eng.Down(ctx, sharedSlug) }()
 
 	// Editing the config to add a shared resource and a dep on it must not fail
 	// validation: the shared name is external to the worktree graph.

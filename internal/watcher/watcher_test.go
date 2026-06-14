@@ -61,7 +61,7 @@ func TestWatchFileChangeFires(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go w.Run(ctx)
+	go func() { _ = w.Run(ctx) }()
 
 	time.Sleep(50 * time.Millisecond)
 	if err := os.WriteFile(file, []byte("v2"), 0o600); err != nil {
@@ -94,7 +94,7 @@ func TestFireCarriesChangedPaths(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go w.Run(ctx)
+	go func() { _ = w.Run(ctx) }()
 
 	time.Sleep(50 * time.Millisecond)
 	if err := os.WriteFile(file, []byte("v2"), 0o600); err != nil {

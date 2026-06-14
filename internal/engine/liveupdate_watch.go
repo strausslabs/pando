@@ -79,7 +79,7 @@ func (e *Engine) startLiveUpdate(as *activeStack) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	lw.cancel = cancel
-	go w.Run(ctx)
+	go func() { _ = w.Run(ctx) }()
 
 	as.mu.Lock()
 	as.live = lw

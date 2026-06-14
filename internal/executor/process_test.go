@@ -112,10 +112,7 @@ func TestLocalRunsAndStops(t *testing.T) {
 		t.Fatal(err)
 	}
 	deadline := time.After(3 * time.Second)
-	for {
-		if strings.Contains(collectText(store, "main", "loop"), "tick") {
-			break
-		}
+	for !strings.Contains(collectText(store, "main", "loop"), "tick") {
 		select {
 		case <-deadline:
 			t.Fatal("local process produced no output")
@@ -157,7 +154,7 @@ func TestLocalReportsRunning(t *testing.T) {
 	r := localRes("svc", "sleep 30")
 	rep := &nopReporter{}
 	_ = e.Start(context.Background(), r, scheduler.Env{Worktree: "main"}, rep)
-	defer e.Stop(context.Background(), r, scheduler.Env{Worktree: "main"})
+	defer func() { _ = e.Stop(context.Background(), r, scheduler.Env{Worktree: "main"}) }()
 	if len(rep.phases) == 0 || rep.phases[len(rep.phases)-1] != scheduler.PhaseRunning {
 		t.Errorf("expected running phase, got %v", rep.phases)
 	}
@@ -197,7 +194,7 @@ func TestSampleRunningProcessReportsMemory(t *testing.T) {
 	if err := e.Start(context.Background(), r, env, &nopReporter{}); err != nil {
 		t.Fatal(err)
 	}
-	defer e.Stop(context.Background(), r, env)
+	defer func() { _ = e.Stop(context.Background(), r, env) }()
 
 	u, ok := e.Sample(context.Background(), r, env)
 	if !ok {

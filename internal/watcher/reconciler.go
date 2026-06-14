@@ -84,7 +84,7 @@ func (r *Reconciler) Run(ctx context.Context) error {
 		_ = r.w.Add(filepath.Join(r.gitDir, "worktrees"), gitWorktreesKey)
 	}
 
-	go r.w.Run(ctx)
+	go func() { _ = r.w.Run(ctx) }()
 
 	r.reconcileWorktrees(ctx)
 

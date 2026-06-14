@@ -58,7 +58,7 @@ func TestResolveDetectsLiveAndDeadSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { ln.Close(); os.Remove(sock) }()
+	defer func() { _ = ln.Close(); _ = os.Remove(sock) }()
 	if !alive(sock) {
 		t.Fatal("listening socket should be alive")
 	}
@@ -69,7 +69,7 @@ func TestResolveDetectsLiveAndDeadSocket(t *testing.T) {
 		t.Error("a nonexistent socket must not report alive")
 	}
 	_ = os.WriteFile(dead, nil, 0o600) // a plain file, nothing listening
-	defer os.Remove(dead)
+	defer func() { _ = os.Remove(dead) }()
 	if alive(dead) {
 		t.Error("a plain file is not a live daemon")
 	}
