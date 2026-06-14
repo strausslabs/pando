@@ -94,10 +94,11 @@ jobs:
             --generate-notes \
             dist/*.tar.gz dist/checksums.txt
 
-      # Regenerate the Homebrew formula and push it to the tap repo so
-      # `brew upgrade` tracks every daily release. Needs a TAP_TOKEN secret: a PAT
-      # with contents:write on guyStrauss/homebrew-pando.
-      - name: Update Homebrew tap
+      # Regenerate Formula/pando.rb in this repo so `brew upgrade` tracks every
+      # release. main is ruleset-protected, so the push uses TAP_TOKEN (a PAT
+      # whose owner is an org admin and thus bypasses the ruleset); the default
+      # GITHUB_TOKEN cannot bypass. Without the secret this step no-ops.
+      - name: Update Homebrew formula
         if: steps.decide.outputs.release == 'true' && env.TAP_TOKEN != ''
         env:
           VERSION: ${{ steps.decide.outputs.version }}
@@ -109,9 +110,8 @@ jobs:
           lnx_arm="$(sha pando-linux-arm64.tar.gz)"
           base="https://github.com/${REPO}/releases/download/${VERSION}"
 
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/${REPO%/*}/homebrew-pando.git" tap
-          mkdir -p tap/Formula
-          cat > tap/Formula/pando.rb <<EOF
+          mkdir -p Formula
+          cat > Formula/pando.rb <<EOF
           class Pando < Formula
             desc "Fast multi-worktree dev environments"
             homepage "https://github.com/${REPO}"
@@ -145,9 +145,8 @@ jobs:
           end
           EOF
 
-          cd tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/pando.rb
-          git commit -m "pando ${VERSION}" || { echo "no formula change"; exit 0; }
-          git push
+          git commit -m "brew: pando ${VERSION}" || { echo "no formula change"; exit 0; }
+          git push "https://x-access-token:${TAP_TOKEN}@github.com/${REPO}.git" "HEAD:${GITHUB_REF_NAME}"

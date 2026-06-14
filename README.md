@@ -10,10 +10,11 @@ dashboard. Branch away.
 ## Install
 
 ```sh
-brew install guyStrauss/pando/pando
+brew tap strausslabs/pando https://github.com/strausslabs/pando
+brew install strausslabs/pando/pando
 ```
 
-Or grab a static binary from [releases](https://github.com/guyStrauss/pando/releases)
+Or grab a static binary from [releases](https://github.com/strausslabs/pando/releases)
 (darwin/arm64, linux/amd64, linux/arm64).
 
 ## Quick start
