@@ -43,6 +43,11 @@ func (c *Client) Status(ctx context.Context) ([]api.WorktreeStatus, error) {
 	return out, c.get(ctx, "/status", &out)
 }
 
+func (c *Client) Version(ctx context.Context) (api.UpdateStatus, error) {
+	var out api.UpdateStatus
+	return out, c.get(ctx, "/version", &out)
+}
+
 func (c *Client) ListWorktrees(ctx context.Context) ([]api.WorktreeInfo, error) {
 	var out []api.WorktreeInfo
 	return out, c.get(ctx, "/worktrees", &out)

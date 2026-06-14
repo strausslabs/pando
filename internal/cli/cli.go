@@ -32,8 +32,8 @@ func Execute(version string) error {
 	_ = root.PersistentFlags().MarkHidden("socket")
 
 	root.AddCommand(
-		startCmd(g),
-		daemonCmd(g),
+		startCmd(g, version),
+		daemonCmd(g, version),
 		mcpCmd(g, version),
 		setupCmd(g),
 		upCmd(g),

@@ -5,16 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/guyStrauss/pando/internal/api"
 	"github.com/guyStrauss/pando/internal/logbuf"
+	"github.com/guyStrauss/pando/internal/selfupdate"
 )
 
 type Server struct {
-	ops  api.StackOps
-	logs *logbuf.Store
-	mux  *http.ServeMux
+	ops    api.StackOps
+	logs   *logbuf.Store
+	mux    *http.ServeMux
+	update atomic.Pointer[selfupdate.Status]
 }
 
 func NewServer(ops api.StackOps, logs *logbuf.Store) *Server {
@@ -23,12 +26,15 @@ func NewServer(ops api.StackOps, logs *logbuf.Store) *Server {
 	return s
 }
 
+func (s *Server) SetUpdate(st selfupdate.Status) { s.update.Store(&st) }
+
 func (s *Server) Handler() http.Handler { return s.mux }
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+	s.mux.HandleFunc("GET /version", s.handleVersion)
 	s.mux.HandleFunc("GET /status", s.handleStatus)
 	s.mux.HandleFunc("GET /worktrees", s.handleWorktrees)
 	s.mux.HandleFunc("GET /logs", s.handleLogs)
@@ -43,6 +49,14 @@ func (s *Server) routes() {
 
 func (s *Server) MountUI(ui http.Handler) {
 	s.mux.Handle("/", ui)
+}
+
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	if st := s.update.Load(); st != nil {
+		writeJSON(w, http.StatusOK, st)
+		return
+	}
+	writeJSON(w, http.StatusOK, selfupdate.Status{})
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {

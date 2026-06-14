@@ -176,6 +176,27 @@ body::after {
   text-transform: uppercase;
   color: var(--bone-dim);
 }
+.update-pill {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--aspen-deep);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: var(--aspen-bright);
+  text-decoration: none;
+  background: rgba(20, 184, 166, 0.08);
+  transition: background 0.2s var(--ease-organic);
+}
+.update-pill:hover {
+  background: rgba(20, 184, 166, 0.18);
+}
+.update-pill + .conn {
+  margin-left: 1rem;
+}
 .conn .dot {
   width: 7px;
   height: 7px;

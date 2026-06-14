@@ -52,6 +52,12 @@ type WorktreeStatus struct {
 	Resources []ResourceStatus `json:"resources"`
 }
 
+type UpdateStatus struct {
+	Current   string `json:"current"`
+	Latest    string `json:"latest"`
+	Available bool   `json:"available"`
+}
+
 type LogQuery struct {
 	Worktree string    `json:"worktree"`
 	Resource string    `json:"resource"`
