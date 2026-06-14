@@ -9,7 +9,9 @@ export function useEvents(onEvent: (ev: WireEvent) => void): ConnectionState {
   const [connected, setConnected] = useState(false);
   const lastSeq = useRef(0);
   const handler = useRef(onEvent);
-  handler.current = onEvent;
+  useEffect(() => {
+    handler.current = onEvent;
+  });
 
   useEffect(() => {
     let ws: WebSocket | null = null;

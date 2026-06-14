@@ -34,7 +34,7 @@ func daemonCmd(g *globalFlags) *cobra.Command {
 			return runDaemon(g, tcpAddr, false)
 		},
 	}
-	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "127.0.0.1:7420", "loopback address for the web UI (empty to disable)")
+	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "auto", "loopback address for the web UI (\"auto\" = repo-derived port, empty to disable)")
 	return cmd
 }
 
@@ -47,7 +47,7 @@ func startCmd(g *globalFlags) *cobra.Command {
 			return runDaemon(g, tcpAddr, true)
 		},
 	}
-	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "127.0.0.1:7420", "loopback address for the web UI (empty to disable)")
+	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "auto", "loopback address for the web UI (\"auto\" = repo-derived port, empty to disable)")
 	return cmd
 }
 
@@ -110,6 +110,16 @@ func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 		Executors: execs,
 		Execers:   execers,
 	})
+
+	if tcpAddr == "auto" {
+		tcpAddr = ""
+		if gitDir != "" {
+			tcpAddr = fmt.Sprintf("127.0.0.1:%d", discovery.FreeUIPort(gitDir))
+		}
+	}
+	if tcpAddr != "" {
+		_ = os.Setenv("PANDO_UI_TARGET", "http://"+tcpAddr)
+	}
 
 	mgr := worktree.NewManager()
 	rec, err := watcher.NewReconciler(eng, loader, mgr, gitDir, watcher.Options{

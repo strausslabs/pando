@@ -29,8 +29,7 @@ export function LogView({ lines, query, showResource, version, snap, onSnapChang
   const filtered = useMemo(() => {
     const matched = query ? lines.filter((l) => matchesQuery(l.text, query)) : lines;
     return matched.length > RENDER_CAP ? matched.slice(matched.length - RENDER_CAP) : matched;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lines, query, version, lines.length]);
+  }, [lines, query]);
 
   // Snap depends on `version` (bumped every flush), not filtered.length: past RENDER_CAP the length saturates and snap would silently die on busy logs.
   useEffect(() => {
@@ -39,7 +38,6 @@ export function LogView({ lines, query, showResource, version, snap, onSnapChang
       programmatic.current = true;
       el.scrollTop = el.scrollHeight;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version, filtered.length, snap]);
 
   if (filtered.length === 0) {

@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -37,6 +38,41 @@ func TestWriteLoadRemoveRoundTrip(t *testing.T) {
 	Remove(gcd)
 	if _, ok := Load(gcd); ok {
 		t.Error("info should be gone after Remove")
+	}
+}
+
+func TestUIPortStablePerRepoAndInRange(t *testing.T) {
+	a1 := UIPort("/repos/a/.git")
+	a2 := UIPort("/repos/a/.git")
+	if a1 != a2 {
+		t.Errorf("UI port not stable for the same repo: %d vs %d", a1, a2)
+	}
+	if a1 < uiBasePort || a1 >= uiBasePort+uiPortSpan {
+		t.Errorf("UI port %d outside [%d,%d)", a1, uiBasePort, uiBasePort+uiPortSpan)
+	}
+	seen := map[int]bool{}
+	for _, r := range []string{"/r/a/.git", "/r/b/.git", "/r/c/.git", "/r/d/.git", "/r/e/.git"} {
+		seen[UIPort(r)] = true
+	}
+	if len(seen) < 2 {
+		t.Errorf("expected distinct UI ports across repos, got %v", seen)
+	}
+}
+
+func TestFreeUIPortWalksPastBoundPort(t *testing.T) {
+	gcd := "/repos/walk/.git"
+	want := UIPort(gcd)
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", want))
+	if err != nil {
+		t.Skipf("preferred port %d not bindable in this env: %v", want, err)
+	}
+	defer func() { _ = ln.Close() }()
+	got := FreeUIPort(gcd)
+	if got == want {
+		t.Errorf("FreeUIPort returned the bound port %d; should have walked past it", want)
+	}
+	if got < want || got >= want+uiPortSpan {
+		t.Errorf("walked port %d outside [%d,%d)", got, want, want+uiPortSpan)
 	}
 }
 

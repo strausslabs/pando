@@ -31,7 +31,7 @@ export function App() {
   const flashTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const searchRef = useRef<HTMLInputElement>(null);
   const logSearchRef = useRef<HTMLInputElement>(null);
-  const { append, linesFor, linesForWorktree, version } = useLogStore();
+  const { append, snapshot } = useLogStore();
 
   const flash = useCallback((worktree: string, resource: string) => {
     const key = bufferKey(worktree, resource);
@@ -95,65 +95,72 @@ export function App() {
   );
   const { connected } = useEvents(onEvent);
 
-  const refresh = useCallback(async () => {
-    try {
-      const st = await api.status();
-      setStacks(st);
-      setTarget((cur) => cur ?? firstResource(st));
-    } catch {}
-  }, []);
-
   useEffect(() => {
+    let live = true;
+    const refresh = async () => {
+      try {
+        const st = await api.status();
+        if (!live) return;
+        setStacks(st);
+        setTarget((cur) => cur ?? firstResource(st));
+      } catch (err) {
+        console.warn("status refresh failed", err);
+      }
+    };
     refresh();
     const t = setInterval(refresh, 4000);
-    return () => clearInterval(t);
-  }, [refresh]);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, []);
 
-  // stacksRef avoids listing `stacks` as an effect dep, which would cancel in-flight backfill fetches on every phase update.
   const stacksRef = useRef<WorktreeStatus[]>([]);
-  stacksRef.current = stacks;
+  useEffect(() => {
+    stacksRef.current = stacks;
+  }, [stacks]);
+
+  const effectiveTarget = useMemo(() => {
+    if (!hideDone || target?.kind !== "resource") return target;
+    const ws = stacks.find((s) => s.worktree === target.worktree);
+    const res = ws?.resources.find((r) => r.name === target.resource);
+    if (res && DONE.has(res.phase)) return { kind: "worktree", worktree: target.worktree } as Target;
+    return target;
+  }, [hideDone, target, stacks]);
 
   useEffect(() => {
-    if (!target) return;
+    if (!effectiveTarget) return;
     const fetchFor = async (worktree: string, resource: string) => {
       try {
         const logs = await api.logs(worktree, resource, 1000);
         logs.forEach(append);
-      } catch {}
+      } catch (err) {
+        console.warn("log backfill failed", worktree, resource, err);
+      }
     };
-    if (target.kind === "resource") {
-      fetchFor(target.worktree, target.resource);
+    if (effectiveTarget.kind === "resource") {
+      fetchFor(effectiveTarget.worktree, effectiveTarget.resource);
     } else {
-      const ws = stacksRef.current.find((s) => s.worktree === target.worktree);
-      ws?.resources.forEach((r) => fetchFor(target.worktree, r.name));
+      const ws = stacksRef.current.find((s) => s.worktree === effectiveTarget.worktree);
+      ws?.resources.forEach((r) => fetchFor(effectiveTarget.worktree, r.name));
     }
-  }, [target, append]);
-
-  useEffect(() => {
-    if (!hideDone || target?.kind !== "resource") return;
-    const ws = stacks.find((s) => s.worktree === target.worktree);
-    const res = ws?.resources.find((r) => r.name === target.resource);
-    if (res && DONE.has(res.phase)) {
-      setTarget({ kind: "worktree", worktree: target.worktree });
-    }
-  }, [hideDone, target, stacks]);
+  }, [effectiveTarget, append]);
 
   const lines = useMemo(() => {
-    if (!target) return [];
-    return target.kind === "worktree"
-      ? linesForWorktree(target.worktree)
-      : linesFor(target.worktree, target.resource);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, linesFor, linesForWorktree, version]);
+    if (!effectiveTarget) return [];
+    return effectiveTarget.kind === "worktree"
+      ? snapshot.linesForWorktree(effectiveTarget.worktree)
+      : snapshot.linesFor(effectiveTarget.worktree, effectiveTarget.resource);
+  }, [effectiveTarget, snapshot]);
 
-  const header = useMemo(() => describeTarget(target, stacks), [target, stacks]);
+  const header = useMemo(() => describeTarget(effectiveTarget, stacks), [effectiveTarget, stacks]);
 
   const previewUrl = useMemo(() => {
-    if (target?.kind !== "resource") return null;
-    const ws = stacks.find((s) => s.worktree === target.worktree);
-    const res = ws?.resources.find((r) => r.name === target.resource);
+    if (effectiveTarget?.kind !== "resource") return null;
+    const ws = stacks.find((s) => s.worktree === effectiveTarget.worktree);
+    const res = ws?.resources.find((r) => r.name === effectiveTarget.resource);
     return res?.preview && res.port ? `http://localhost:${res.port}` : null;
-  }, [target, stacks]);
+  }, [effectiveTarget, stacks]);
 
   return (
     <div className="app">
@@ -237,15 +244,15 @@ export function App() {
               </div>
             </div>
           </div>
-          {target ? (
+          {effectiveTarget ? (
             previewUrl && showPreview ? (
               <Preview url={previewUrl} />
             ) : (
               <LogView
                 lines={lines}
                 query={logQuery}
-                showResource={target.kind === "worktree"}
-                version={version}
+                showResource={effectiveTarget.kind === "worktree"}
+                version={snapshot.version}
                 snap={snap}
                 onSnapChange={setSnap}
               />

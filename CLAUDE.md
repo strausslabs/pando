@@ -32,6 +32,13 @@ These apply to **both** the Go backend and the TS frontend.
   the wrong abstraction, fix the cause even if the task grows. A clean codebase
   pays off far longer than a quick patch layered on a broken design. Don't stack
   a workaround on top of something that should be corrected — correct it.
+- **Own mistakes; fix the code, not the check.** When a linter, type checker, or
+  test fails, the default is that it found a real problem — fix the code. Do not
+  disable the rule, loosen the config, add a suppression, or wave it off as a
+  "false positive" to make the signal go away. If a rule is genuinely wrong for
+  this repo, say so explicitly and get agreement before relaxing it; the burden
+  is on the change to the check, not on keeping the code honest. If a previous
+  step was wrong, name it and correct it rather than building on it.
 - **Pure logic is extracted and testable.** Keep formatting, filtering, parsing,
   and ordering in plain functions, separate from React components and from the
   scheduler's control flow, so they can be unit-tested without a DOM or a daemon.
@@ -51,9 +58,13 @@ These apply to **both** the Go backend and the TS frontend.
 
 ## Build & test
 
-- Backend: `go build ./...` and `go test ./...` from the repo root.
-- Frontend (in `ui/`): `bun test`, `bun run typecheck`, `bun run build`
-  (builds into `internal/web/dist` for `go:embed`).
+- Backend: `go build ./...`, `go vet ./...`, `golangci-lint run`, and
+  `go test ./...` from the repo root.
+- Frontend (in `ui/`): `bun run typecheck`, `bun run lint`, `bun test`, and
+  `bun run build` (builds into `internal/web/dist` for `go:embed`).
+- **Pre-commit mirrors CI locally.** Install once with `pre-commit install &&
+  pre-commit install --hook-type pre-push`. Commit runs the fast checks (format,
+  vet, lint, `go test -short`, UI); push runs the full `go test -race` suite.
 - Commits go directly on `main`. Do **not** mention Claude / Claude Code or add
   `Co-Authored-By` trailers.
 

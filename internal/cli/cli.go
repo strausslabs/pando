@@ -35,6 +35,7 @@ func Execute(version string) error {
 		startCmd(g),
 		daemonCmd(g),
 		mcpCmd(g, version),
+		setupCmd(g),
 		upCmd(g),
 		downCmd(g),
 		statusCmd(g),
