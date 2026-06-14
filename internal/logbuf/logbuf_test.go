@@ -264,12 +264,6 @@ func TestStoreGlobalSeqMonotonicInAppendOrder(t *testing.T) {
 		s.Append(a.wt, a.res, Stdout, a.text, mk)
 	}
 
-	// Reconstruct append order via the text we stored (which we wrote in order),
-	// then verify Seq strictly increases following that order.
-	type pair struct {
-		text string
-		seq  uint64
-	}
 	byText := map[string]uint64{}
 	for _, ref := range s.Resources() {
 		lines, _ := s.Query(ref.Worktree, ref.Resource, Query{})

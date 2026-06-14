@@ -70,9 +70,9 @@ jobs:
         run: |
           bun install --frozen-lockfile
           bun run build
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: v2.12.2
 
   ui:
     name: UI (bun)

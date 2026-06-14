@@ -22,7 +22,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer c.CloseNow()
+	defer func() { _ = c.CloseNow() }()
 
 	ctx := c.CloseRead(r.Context())
 	worktreeFilter := r.URL.Query().Get("worktree")

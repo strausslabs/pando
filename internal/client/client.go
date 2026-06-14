@@ -120,7 +120,7 @@ func (c *Client) do(req *http.Request, out any) error {
 	if err != nil {
 		return fmt.Errorf("daemon unreachable (is `pando daemon` running?): %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		var e struct {
 			Error string `json:"error"`

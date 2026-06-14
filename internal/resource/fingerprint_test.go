@@ -4,7 +4,8 @@ import "testing"
 
 func TestFingerprintStable(t *testing.T) {
 	r := &Resource{Name: "a", Kind: KindLocal, Local: &LocalSpec{Cmd: "run"}}
-	if r.Fingerprint() != r.Fingerprint() {
+	first, second := r.Fingerprint(), r.Fingerprint()
+	if first != second {
 		t.Error("fingerprint must be stable for identical resource")
 	}
 }

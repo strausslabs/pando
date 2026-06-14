@@ -116,14 +116,14 @@ func statusCmd(g *globalFlags) *cobra.Command {
 
 func printStatus(st []api.WorktreeStatus) {
 	tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-	fmt.Fprintln(tw, "WORKTREE\tRESOURCE\tKIND\tPHASE\tPORT")
+	_, _ = fmt.Fprintln(tw, "WORKTREE\tRESOURCE\tKIND\tPHASE\tPORT")
 	for _, ws := range st {
 		for _, r := range ws.Resources {
 			port := ""
 			if r.Port > 0 {
 				port = fmt.Sprintf("%d", r.Port)
 			}
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", ws.Worktree, r.Name, r.Kind, r.Phase, port)
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", ws.Worktree, r.Name, r.Kind, r.Phase, port)
 		}
 	}
 	_ = tw.Flush()
@@ -197,8 +197,8 @@ func execCmd(g *globalFlags) *cobra.Command {
 					return err
 				}
 			} else {
-				fmt.Fprint(os.Stdout, res.Stdout)
-				fmt.Fprint(os.Stderr, res.Stderr)
+				_, _ = fmt.Fprint(os.Stdout, res.Stdout)
+				_, _ = fmt.Fprint(os.Stderr, res.Stderr)
 			}
 			if res.ExitCode != 0 {
 				os.Exit(res.ExitCode)
@@ -249,9 +249,9 @@ func worktreesCmd(g *globalFlags) *cobra.Command {
 				return printJSON(wts)
 			}
 			tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-			fmt.Fprintln(tw, "SLUG\tBRANCH\tPATH")
+			_, _ = fmt.Fprintln(tw, "SLUG\tBRANCH\tPATH")
 			for _, w := range wts {
-				fmt.Fprintf(tw, "%s\t%s\t%s\n", w.Slug, w.Branch, w.Path)
+				_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", w.Slug, w.Branch, w.Path)
 			}
 			_ = tw.Flush()
 			return nil

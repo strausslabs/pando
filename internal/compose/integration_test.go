@@ -63,7 +63,7 @@ func TestComposeLifecycleReal(t *testing.T) {
 	if err := b.Start(ctx, r, env, nopReporter{}); err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	defer b.Stop(ctx, r, env)
+	defer func() { _ = b.Stop(ctx, r, env) }()
 
 	if !waitForLog(logs, "itest", "ticker", "CONTAINER-UP", 15*time.Second) {
 		t.Fatal("container startup log never captured")

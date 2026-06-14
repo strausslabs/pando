@@ -107,7 +107,7 @@ func buildRun(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwar
 		if err != nil {
 			return nil, fmt.Errorf("run: trigger: %w", err)
 		}
-		step.SetKey(starlark.String("trigger"), list)
+		_ = step.SetKey(starlark.String("trigger"), list)
 	}
 	return step, nil
 }

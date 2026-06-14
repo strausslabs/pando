@@ -63,7 +63,7 @@ func removeStaleSocket(path string) error {
 	}
 	conn, err := net.DialTimeout("unix", path, 200*time.Millisecond)
 	if err == nil {
-		conn.Close()
+		_ = conn.Close()
 		return fmt.Errorf("a pando daemon is already running on %s", path)
 	}
 	return os.Remove(path)

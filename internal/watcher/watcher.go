@@ -62,7 +62,7 @@ func (w *Watcher) Remove(path string) {
 }
 
 func (w *Watcher) Run(ctx context.Context) error {
-	defer w.fsw.Close()
+	defer func() { _ = w.fsw.Close() }()
 	for {
 		select {
 		case <-ctx.Done():
