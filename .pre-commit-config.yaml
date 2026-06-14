@@ -15,7 +15,7 @@ repos:
 
       - id: go-vet
         name: go vet
-        entry: go vet ./...
+        entry: bash -c 'go vet $(go list ./... | grep -v /ui/node_modules/)'
         language: system
         types: [go]
         pass_filenames: false
@@ -29,7 +29,7 @@ repos:
 
       - id: go-test-short
         name: go test -short
-        entry: go test -short ./...
+        entry: bash -c 'go test -short $(go list ./... | grep -v /ui/node_modules/)'
         language: system
         types: [go]
         pass_filenames: false
@@ -57,7 +57,7 @@ repos:
 
       - id: go-test-race
         name: go test -race (full)
-        entry: go test -race -count=1 ./...
+        entry: bash -c 'go test -race -count=1 $(go list ./... | grep -v /ui/node_modules/)'
         language: system
         types: [go]
         pass_filenames: false

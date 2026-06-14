@@ -1,6 +1,10 @@
 package compose
 
 import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -195,5 +199,44 @@ func TestSortedKeys(t *testing.T) {
 	got := sortedKeys(map[string]string{"c": "", "a": "", "b": ""})
 	if strings.Join(got, "") != "abc" {
 		t.Errorf("keys not sorted: %v", got)
+	}
+}
+
+func TestResolveDockerHostDeferToEnv(t *testing.T) {
+	t.Setenv("DOCKER_HOST", "tcp://1.2.3.4:2375")
+	if got := resolveDockerHost("/usr/bin/docker"); got != "" {
+		t.Errorf("DOCKER_HOST set should yield empty (FromEnv honors it), got %q", got)
+	}
+}
+
+func TestResolveDockerHostNoCLI(t *testing.T) {
+	t.Setenv("DOCKER_HOST", "")
+	if got := resolveDockerHost(""); got != "" {
+		t.Errorf("no docker CLI should yield empty, got %q", got)
+	}
+}
+
+func TestResolveDockerHostFromContext(t *testing.T) {
+	t.Setenv("DOCKER_HOST", "")
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "docker")
+	script := "#!/bin/sh\necho 'unix:///run/fake.sock'\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := resolveDockerHost(fake); got != "unix:///run/fake.sock" {
+		t.Errorf("context host: %q", got)
+	}
+}
+
+func TestStartFailsFastWhenUnreachable(t *testing.T) {
+	b := &Backend{pingErr: errors.New("cannot connect")}
+	r := &resource.Resource{Name: "db", Kind: resource.KindCompose, Compose: &resource.ComposeSpec{}}
+	err := b.Start(context.Background(), r, env(), nopReporter{})
+	if err == nil {
+		t.Fatal("unreachable docker should fail Start")
+	}
+	if !strings.Contains(err.Error(), "db") || !strings.Contains(err.Error(), "needs Docker") {
+		t.Errorf("error should name resource and docker requirement: %v", err)
 	}
 }

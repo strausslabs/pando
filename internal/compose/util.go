@@ -25,6 +25,17 @@ func lookDocker() string {
 	return path
 }
 
+func resolveDockerHost(dockerPath string) string {
+	if os.Getenv("DOCKER_HOST") != "" || dockerPath == "" {
+		return ""
+	}
+	out, err := exec.Command(dockerPath, "context", "inspect", "--format", "{{.Endpoints.docker.Host}}").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func buildEnv() []string {
 	return append(os.Environ(), "DOCKER_BUILDKIT=1")
 }

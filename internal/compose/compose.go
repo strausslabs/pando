@@ -22,10 +22,11 @@ import (
 )
 
 type Backend struct {
-	cli    client.APIClient
-	docker string
-	sink   Sink
-	clock  func() time.Time
+	cli     client.APIClient
+	docker  string
+	sink    Sink
+	clock   func() time.Time
+	pingErr error
 }
 
 type Sink interface {
@@ -33,16 +34,32 @@ type Sink interface {
 }
 
 func New(sink Sink, clock func() time.Time) (*Backend, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return nil, fmt.Errorf("docker client: %w", err)
-	}
 	if clock == nil {
 		clock = time.Now
 	}
-	b := &Backend{cli: cli, sink: sink, clock: clock}
-	b.docker = lookDocker()
+	docker := lookDocker()
+
+	opts := []client.Opt{client.FromEnv, client.WithAPIVersionNegotiation()}
+	if host := resolveDockerHost(docker); host != "" {
+		opts = append(opts, client.WithHost(host))
+	}
+	cli, err := client.NewClientWithOpts(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("docker client: %w", err)
+	}
+
+	b := &Backend{cli: cli, docker: docker, sink: sink, clock: clock}
+	b.pingErr = b.ping()
 	return b, nil
+}
+
+func (b *Backend) ping() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if _, err := b.cli.Ping(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 func containerName(project, res string) string { return project + "-" + res }
@@ -55,6 +72,9 @@ func scopeOf(env scheduler.Env) interp.Scope {
 }
 
 func (b *Backend) Start(ctx context.Context, r *resource.Resource, env scheduler.Env, rep scheduler.Reporter) error {
+	if b.pingErr != nil {
+		return fmt.Errorf("resource %q needs Docker but the daemon isn't reachable — start Docker / install it: %w", r.Name, b.pingErr)
+	}
 	if r.Build != nil {
 		rep.Phase(scheduler.PhaseStarting)
 		if err := b.build(ctx, r, env); err != nil {

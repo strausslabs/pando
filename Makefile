@@ -1,7 +1,7 @@
 .PHONY: all build dist test race vet fmt lint ui ui-install ui-test ui-dev clean install tidy
 
 BIN := bin/pando
-PKG := ./...
+PKG := $(shell go list ./... | grep -v /ui/node_modules/)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.version=$(VERSION)
 
