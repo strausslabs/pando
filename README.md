@@ -17,6 +17,12 @@ shows the whole grove in a web dashboard. Branch away.
   <img src="assets/demo.gif" alt="Pando demo" width="760" />
 </p>
 
+<p align="center">
+  <img src="assets/dashboard.png" alt="Pando dashboard — the living grove" width="760" />
+  <br />
+  <sub>The grove: every worktree and its resources, live logs, in one dashboard.</sub>
+</p>
+
 ## Why
 
 Working on three branches at once usually means three clones, three sets of
@@ -41,10 +47,15 @@ resources (a database, say) that come up once and are reused across branches.
 ```sh
 brew tap strausslabs/pando https://github.com/strausslabs/pando
 brew install strausslabs/pando/pando
+pando setup   # optional: install the pando.star skill + register the MCP server
 ```
 
 Or grab a static binary from [releases](https://github.com/strausslabs/pando/releases)
 (darwin/arm64, linux/amd64, linux/arm64).
+
+`pando setup` is for agent users: it drops the `pando.star` authoring skill into
+`~/.claude/skills/` and runs `claude mcp add pando -- pando mcp`. Skip it if you
+don't drive Pando with an AI agent.
 
 ## Quick start
 
@@ -80,11 +91,14 @@ define_stack(
 ```
 
 Full syntax: **[Config reference](docs/config.md)**. Editing configs with an AI
-agent? Install the **[pando.star skill](docs/pando-star-skill/SKILL.md)**.
+agent? Run `pando setup` (or install the
+**[pando.star skill](docs/pando-star-skill/SKILL.md)** by hand) — it teaches the
+agent the syntax and how to migrate an existing setup onto Pando.
 
 ## Agents (MCP)
 
-Pando speaks the Model Context Protocol so an agent can drive it:
+Pando speaks the Model Context Protocol so an agent can drive it. `pando setup`
+registers it for you, or do it by hand:
 
 ```sh
 claude mcp add pando -- pando mcp

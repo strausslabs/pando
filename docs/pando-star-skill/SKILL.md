@@ -1,62 +1,159 @@
 ---
 name: pando-star
 description: >-
-  Author and edit pando.star configuration files for Pando, the multi-worktree
-  dev environment manager. Use when a user asks to create, edit, or debug a
-  pando.star file, define resources/services for Pando, set up dependency graphs,
-  readiness probes, live-update rules, or shared resources.
+  Author, migrate, and debug pando.star configs for Pando, the multi-worktree
+  dev environment manager. Use when a user wants to create or edit a pando.star
+  file, move an existing dev setup (docker-compose, Procfile, Makefile, foreman,
+  a pile of `npm run dev` terminals) onto Pando, set up dependency graphs /
+  readiness probes / live-update / shared resources, or troubleshoot a stack
+  that won't come up.
 ---
 
-# Authoring `pando.star`
+# Working with `pando.star`
+
+> **Install this skill** (one line — pulls it into Claude Code's skill dir):
+> ```sh
+> mkdir -p ~/.claude/skills/pando-star && curl -fsSL https://raw.githubusercontent.com/strausslabs/pando/main/docs/pando-star-skill/SKILL.md -o ~/.claude/skills/pando-star/SKILL.md
+> ```
+> Then Claude auto-discovers it whenever you ask it to write or fix a
+> `pando.star`. Verify with `/skills`.
 
 `pando.star` describes one repo's dev environment for Pando. It is
 [Starlark](https://github.com/bazelbuild/starlark): Python-like, deterministic,
 **no `import`** — every helper is predeclared. The file must call
 `define_stack(...)` exactly once.
 
-## The one rule that trips people up
-
-There are **no imports and no `from ... import`**. If you write `import` you will
-break the file. All helpers (`define_stack`, `service`, `cmd`, `task`,
-`compose`, `build`, `healthcheck`, `http_get`, `tcp`, `log_match`, `exit0`,
-`sync`, `run`, `restart`, `duration`, `bytes`) are already in scope. Just call
-them.
-
-## Skeleton
-
 ```python
 define_stack(
-    name = "<stack-name>",
+    name = "myapp",
     services = {
-        "<resource-name>": service(<spec>, deps = [...], ready = <probe>, ...),
+        "api": service(local = cmd("go run ./cmd/api")),
     },
 )
 ```
 
-- `services` keys are resource names — lowercase DNS-1123 (`a-z`, `0-9`, `-`).
-- Each value is `service(...)`.
-- Kind is **inferred**: `local=` → host process, `task=` → one-shot, else
-  `compose=` → Docker service. Set exactly one.
+> **The #1 mistake:** writing `import`. There are no imports. Every helper
+> (`define_stack`, `service`, `cmd`, `task`, `compose`, `build`, `healthcheck`,
+> `http_get`, `tcp`, `log_match`, `exit0`, `sync`, `run`, `restart`, `duration`,
+> `bytes`) is already in scope. Just call it.
 
-## Decision guide
+---
 
-1. **What runs it?**
-   - A local binary/dev server → `local = cmd("...")`.
-   - A container → `compose = compose(image = "...")` (add `build = build(...)`
-     to build instead of pull).
-   - A one-shot step (migrations, codegen) → `task = task(cmd = "...")`.
-2. **What must come first?** Put their names in `deps = [...]`.
-3. **How do we know it's up?** Add `ready =`:
-   - HTTP service → `http_get("http://localhost:$PORT_<name>/health", timeout = "30s")`
-   - Plain port → `tcp("localhost:$PORT_<name>", timeout = "30s")`
-   - Log sentinel → `log_match("listening on", timeout = "30s")`
-   - One-shot success → `exit0()`
-4. **Ports.** Never hardcode a host port. Use `$PORT_<resource>` — Pando
-   allocates a unique one per worktree, so branches don't collide. Reference it
-   in `ports`, `env`, and probe targets.
-5. **Shared infra?** Mark `shared = True` to bring it up once for the whole repo.
-   A shared resource may depend **only on other shared resources**.
-6. **Fast iteration in containers?** Add `liveUpdate = [sync(...), run(...), restart()]`.
+## Migrating an existing setup
+
+Pick the source the project already has and translate it. Do this in three
+passes: **(1)** one resource per process/container, **(2)** wire `deps` so things
+start in order, **(3)** add a `ready` probe to each so dependents wait for *real*
+readiness, not just "process started".
+
+### From `docker-compose.yml`
+
+Each compose service becomes a `service(compose = compose(...))`. Map fields
+directly; swap fixed host ports for `$PORT_<name>` so worktrees don't collide.
+
+```yaml
+# docker-compose.yml
+services:
+  db:
+    image: postgres:16
+    ports: ["5432:5432"]
+    environment: { POSTGRES_PASSWORD: dev }
+  api:
+    build: .
+    ports: ["8080:8080"]
+    depends_on: [db]
+```
+
+```python
+define_stack(
+    name = "myapp",
+    services = {
+        "db": service(
+            compose = compose(image = "postgres:16", ports = ["$PORT_db:5432"],
+                              env = {"POSTGRES_PASSWORD": "dev"}),
+            ready = tcp("localhost:$PORT_db", timeout = "30s"),
+        ),
+        "api": service(
+            build = build(context = "."),
+            compose = compose(ports = ["$PORT_api:8080"]),
+            deps = ["db"],
+            ready = http_get("http://localhost:$PORT_api/health", timeout = "30s"),
+        ),
+    },
+)
+```
+
+Field map: `image`→`image`, `ports`→`ports` (use `$PORT_*`), `environment`→`env`,
+`env_file`→`envFile`, `volumes`→`volumes`, `command`→`command`,
+`depends_on`→`deps`, `build:`→`build(context=...)`, `healthcheck`→`healthcheck(...)`,
+`mem_limit`→`memory`, `cpus`→`cpus`, `restart`→`restart`.
+
+### From a Procfile / foreman / `npm run dev` in many terminals
+
+Each line (or each terminal you babysit) is a `local` process. Add `deps`/`ready`
+where one waits on another.
+
+```
+# Procfile
+web: npm run dev
+api: go run ./cmd/api
+css: npx tailwindcss -w
+```
+
+```python
+define_stack(
+    name = "myapp",
+    services = {
+        "api": service(
+            local = cmd("go run ./cmd/api", env = {"PORT": "$PORT_api"}),
+            ready = http_get("http://localhost:$PORT_api/health", timeout = "20s"),
+            watch = ["./internal", "./cmd"],
+        ),
+        "web": service(
+            local = cmd("npm run dev", cwd = "./web", env = {"API": "localhost:$PORT_api"}),
+            deps = ["api"],
+            ready = http_get("http://localhost:$PORT_web", timeout = "20s"),
+        ),
+        "css": service(local = cmd("npx tailwindcss -w", cwd = "./web")),
+    },
+)
+```
+
+### From a Makefile (`make dev`, `make migrate`)
+
+One-shot targets (build, migrate, seed, codegen) become `task`; long-running
+targets become `local`. Order them with `deps`.
+
+```python
+"migrate": service(task = task(cmd = "make migrate"), deps = ["db"], runWhen = "once"),
+"api":     service(local = cmd("make run"), deps = ["migrate"]),
+```
+
+### Migration checklist
+
+- [ ] One `service` per process/container.
+- [ ] Every hardcoded host port replaced with `$PORT_<name>`.
+- [ ] `depends_on` / "I start this terminal after that one" → `deps`.
+- [ ] One-shot steps (migrate/seed/codegen) → `task` with `runWhen = "once"`.
+- [ ] Each long-running service has a `ready` probe so dependents truly wait.
+- [ ] Shared infra (a DB used by every branch) → `shared = True`.
+- [ ] No `import`; `define_stack` called once.
+
+---
+
+## Authoring decision guide
+
+1. **What runs it?** local binary → `local = cmd("...")`; container →
+   `compose = compose(image="...")` (add `build = build(...)` to build); one-shot
+   → `task = task(cmd="...")`.
+2. **What comes first?** → `deps = [...]`.
+3. **How do we know it's up?** → `ready =` (see Probes). Don't skip this — it's
+   what makes the graph correct instead of a `sleep`.
+4. **Ports:** never hardcode a host port. Use `$PORT_<resource>`; reference it in
+   `ports`, `env`, and probe targets.
+5. **Shared infra?** `shared = True` — brought up once for the whole repo. A
+   shared resource may depend **only** on other shared resources.
+6. **Fast container iteration?** `liveUpdate = [sync(...), run(...), restart()]`.
 
 ## Helper signatures
 
@@ -83,51 +180,37 @@ duration("30s")  bytes("256m")        # explicit coercion; strings also work inl
 `service(local=|task=|compose=, build?, deps?, ready?, runWhen?, onChange?,
 every?, shared?, preview?, liveUpdate?, hooks?)`
 
-## Field cheatsheet
-
 - `runWhen`: `"once"` | `"always"` | `"onChange"` | `"manual"`. `local`/`compose`
-  default to `always`; `task` defaults to `once`.
-- `onChange = [paths]` is **required** when `runWhen = "onChange"`.
-- `every = "30s"` runs periodically (implies `always`).
+  default `always`; `task` defaults `once`. `onChange=[paths]` is required when
+  `runWhen="onChange"`. `every="30s"` runs periodically.
 - Durations: `"500ms"`, `"30s"`, `"5m"`, `"1h"`. Sizes: `"256m"`, `"1g"`.
-- `hooks = {"postStart": "...", "preStop": "..."}`.
 
-## Worked example
+---
 
-```python
-define_stack(
-    name = "shop",
-    services = {
-        "pg": service(
-            compose = compose(image = "postgres:16", ports = ["$PORT_pg:5432"],
-                              env = {"POSTGRES_PASSWORD": "dev"}),
-            shared = True,
-            ready = tcp("localhost:$PORT_pg", timeout = "30s"),
-        ),
-        "migrate": service(task = task(cmd = "./bin/migrate"), deps = ["pg"]),
-        "api": service(
-            local = cmd("go run ./cmd/api", env = {"DB": "localhost:$PORT_pg"}),
-            deps = ["migrate"],
-            ready = http_get("http://localhost:$PORT_api/healthz", timeout = "20s"),
-            watch = ["./internal", "./cmd"],
-        ),
-        "web": service(
-            local = cmd("bun run dev", cwd = "./web"),
-            deps = ["api"],
-            ready = http_get("http://localhost:$PORT_web", timeout = "20s"),
-        ),
-    },
-)
+## Troubleshooting
+
+Read the resource's own logs first — that's where the real error is:
+
+```sh
+pando status                          # phases + ports for every worktree
+pando logs <name> -w <worktree> --tail 50
+pando logs <name> -w <worktree> --grep 'error|panic|refused'
 ```
 
-## Validation checklist before you finish
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `config must call define_stack(...)` | file never calls it, or an exception threw first | Ensure exactly one top-level `define_stack(...)`. |
+| `evaluate config: ... undefined: foo` | typo, or you wrote `import` | Remove imports; check the helper name against the list above. |
+| `unknown field "x"` on a service | field misspelled or not a `service()` field | Compare against the `service(...)` signature; move compose-only fields inside `compose(...)`. |
+| Resource stuck **not ready** / dependents never start | `ready` probe never passes | `pando logs <name>`; verify the probe target/port; the process may bind a different port than `$PORT_<name>`. |
+| `bind: address already in use` | a host port is hardcoded instead of `$PORT_*`, or a stale process holds it | Use `$PORT_<name>` everywhere; `pando down` to clear, then `pando up`. |
+| Probe passes but app actually broken | probing the wrong thing (e.g. TCP open but app 500s) | Use `http_get` on a real `/health` route, not `tcp`. |
+| Task reruns every time | `task` without `runWhen` defaults sensibly, but a `local` won't stop | One-shots → `task(...)` + `runWhen="once"`; force a rerun with `pando up --force`. |
+| Shared resource rejected at validation | it depends on a non-shared resource | Shared may depend only on shared. Make the dep shared too, or drop it. |
+| Edit to `pando.star` did nothing | daemon didn't reload, or the diff was a no-op | Pando hot-reloads on save; if not, `pando down && pando up`. |
+| `not inside a git repository` | running outside a worktree | `cd` into the repo; Pando keys everything off the git dir. |
 
-- [ ] No `import` statements.
-- [ ] `define_stack` called once, with `name` and `services`.
-- [ ] Every `service` sets exactly one of `local` / `task` / `compose`.
-- [ ] Every name in some `deps` exists as a key in `services`.
-- [ ] No hardcoded host ports — use `$PORT_<name>`.
-- [ ] Shared resources depend only on shared resources.
-- [ ] `onChange` present whenever `runWhen = "onChange"`.
+When a resource fails, the fastest loop is: `pando logs <name> --tail 50` → fix
+the `cmd`/`env`/`ready` in `pando.star` → save (hot reload) → `pando status`.
 
-Full reference: see `docs/config.md` in the Pando repo.
+Full field reference: `docs/config.md` in the Pando repo.

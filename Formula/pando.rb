@@ -25,6 +25,15 @@ class Pando < Formula
     bin.install "pando"
   end
 
+  def caveats
+    <<~EOS
+      Driving Pando with an AI agent? Run:
+        pando setup
+      to install the pando.star skill into ~/.claude/skills and register the
+      MCP server (claude mcp add pando -- pando mcp).
+    EOS
+  end
+
   test do
     assert_match "pando version", shell_output("#{bin}/pando --version")
   end
