@@ -18,6 +18,7 @@ import (
 	"github.com/guyStrauss/pando/internal/logbuf"
 	"github.com/guyStrauss/pando/internal/resource"
 	"github.com/guyStrauss/pando/internal/scheduler"
+	"github.com/guyStrauss/pando/internal/selfupdate"
 	"github.com/guyStrauss/pando/internal/state"
 	"github.com/guyStrauss/pando/internal/watcher"
 	"github.com/guyStrauss/pando/internal/web"
@@ -25,33 +26,33 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func daemonCmd(g *globalFlags) *cobra.Command {
+func daemonCmd(g *globalFlags, version string) *cobra.Command {
 	var tcpAddr string
 	cmd := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run the Pando daemon (low-level; prefer `pando start`)",
 		RunE: func(c *cobra.Command, args []string) error {
-			return runDaemon(g, tcpAddr, false)
+			return runDaemon(g, version, tcpAddr, false)
 		},
 	}
 	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "auto", "loopback address for the web UI (\"auto\" = repo-derived port, empty to disable)")
 	return cmd
 }
 
-func startCmd(g *globalFlags) *cobra.Command {
+func startCmd(g *globalFlags, version string) *cobra.Command {
 	var tcpAddr string
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start Pando: run the daemon and bring all worktrees up",
 		RunE: func(c *cobra.Command, args []string) error {
-			return runDaemon(g, tcpAddr, true)
+			return runDaemon(g, version, tcpAddr, true)
 		},
 	}
 	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "auto", "loopback address for the web UI (\"auto\" = repo-derived port, empty to disable)")
 	return cmd
 }
 
-func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
+func runDaemon(g *globalFlags, version, tcpAddr string, autoUp bool) error {
 	loader, err := config.NewLoader()
 	if err != nil {
 		return err
@@ -145,6 +146,14 @@ func runDaemon(g *globalFlags, tcpAddr string, autoUp bool) error {
 	if ui, ok := web.Handler(); ok {
 		srv.MountUI(ui)
 	}
+
+	go func() {
+		st := selfupdate.Check(ctx, version, filepath.Join(stateDir, "update.json"), time.Now())
+		srv.SetUpdate(st)
+		if st.Available {
+			fmt.Fprintf(os.Stderr, "a newer pando is available: %s → %s · brew upgrade pando\n", st.Current, st.Latest)
+		}
+	}()
 
 	if tcpAddr != "" {
 		go func() {

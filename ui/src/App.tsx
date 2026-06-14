@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Phase, WireEvent, WorktreeStatus } from "./types";
+import type { Phase, WireEvent, WorktreeStatus, UpdateStatus } from "./types";
 import { api } from "./api";
 import { useEvents } from "./useEvents";
 import { useLogStore } from "./useLogStore";
@@ -10,6 +10,7 @@ import { Preview } from "./Preview";
 import { Sidebar } from "./Sidebar";
 import { Tree, Mark } from "./Tree";
 import { Shortcuts } from "./Shortcuts";
+import { UpdatePill } from "./UpdatePill";
 import { phaseLabel } from "./phase";
 
 type Target =
@@ -27,6 +28,7 @@ export function App() {
   const [snap, setSnap] = useState(true);
   const [showPreview, setShowPreview] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
+  const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const [flashing, setFlashing] = useState<Set<string>>(() => new Set());
   const flashTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const searchRef = useRef<HTMLInputElement>(null);
@@ -115,6 +117,10 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    api.version().then(setUpdate).catch(() => {});
+  }, []);
+
   const stacksRef = useRef<WorktreeStatus[]>([]);
   useEffect(() => {
     stacksRef.current = stacks;
@@ -172,6 +178,7 @@ export function App() {
             <span className="tagline">branch away</span>
           </span>
         </span>
+        <UpdatePill update={update} />
         <span
           className={`conn ${connected ? "live" : ""}`}
           title={connected ? "live log stream connected" : "reconnecting to daemon…"}

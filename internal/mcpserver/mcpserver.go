@@ -22,6 +22,7 @@ type Deps struct {
 // Daemon is the slice of the daemon client the tools use.
 type Daemon interface {
 	Status(ctx context.Context) ([]api.WorktreeStatus, error)
+	Version(ctx context.Context) (api.UpdateStatus, error)
 	ListWorktrees(ctx context.Context) ([]api.WorktreeInfo, error)
 	Logs(ctx context.Context, q api.LogQuery) ([]api.LogLine, error)
 	Up(ctx context.Context, worktree string, force bool) error
@@ -139,7 +140,10 @@ func runningTool(d Deps) mcp.ToolHandlerFor[struct{}, RunningOut] {
 }
 
 type StatusOut struct {
-	Worktrees []api.WorktreeStatus `json:"worktrees"`
+	Worktrees       []api.WorktreeStatus `json:"worktrees"`
+	Version         string               `json:"version,omitempty"`
+	LatestVersion   string               `json:"latestVersion,omitempty"`
+	UpdateAvailable bool                 `json:"updateAvailable,omitempty"`
 }
 
 func statusTool(d Deps) mcp.ToolHandlerFor[struct{}, StatusOut] {
@@ -152,7 +156,11 @@ func statusTool(d Deps) mcp.ToolHandlerFor[struct{}, StatusOut] {
 		if err != nil {
 			return errResult(err.Error()), StatusOut{}, nil
 		}
-		return nil, StatusOut{Worktrees: st}, nil
+		out := StatusOut{Worktrees: st}
+		if up, err := cl.Version(ctx); err == nil {
+			out.Version, out.LatestVersion, out.UpdateAvailable = up.Current, up.Latest, up.Available
+		}
+		return nil, out, nil
 	}
 }
 

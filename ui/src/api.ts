@@ -1,4 +1,4 @@
-import type { WorktreeStatus, WorktreeInfo, LogLine } from "./types";
+import type { WorktreeStatus, WorktreeInfo, LogLine, UpdateStatus } from "./types";
 
 async function post(path: string, body: unknown): Promise<void> {
   const res = await fetch(path, {
@@ -20,6 +20,7 @@ async function get<T>(path: string): Promise<T> {
 
 export const api = {
   status: () => get<WorktreeStatus[]>("/status"),
+  version: () => get<UpdateStatus>("/version"),
   worktrees: () => get<WorktreeInfo[]>("/worktrees"),
   logs: (worktree: string, resource: string, tail = 200) =>
     get<LogLine[]>(`/logs?worktree=${encodeURIComponent(worktree)}&resource=${encodeURIComponent(resource)}&tail=${tail}`),

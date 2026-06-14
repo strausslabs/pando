@@ -120,6 +120,9 @@ func statusCmd(g *globalFlags) *cobra.Command {
 				return printJSON(st)
 			}
 			printStatus(st)
+			if up, err := cl.Version(ctx()); err == nil && up.Available {
+				fmt.Fprintf(os.Stderr, "\na newer pando is available: %s → %s · brew upgrade pando\n", up.Current, up.Latest)
+			}
 			return nil
 		},
 	}

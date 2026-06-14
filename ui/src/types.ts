@@ -61,3 +61,9 @@ export interface WireEvent {
   phase?: Phase;
   line?: LogLine;
 }
+
+export interface UpdateStatus {
+  current: string;
+  latest: string;
+  available: boolean;
+}

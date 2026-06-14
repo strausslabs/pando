@@ -22,6 +22,9 @@ type fakeDaemon struct {
 func (f *fakeDaemon) Status(context.Context) ([]api.WorktreeStatus, error) {
 	return f.status, f.err
 }
+func (f *fakeDaemon) Version(context.Context) (api.UpdateStatus, error) {
+	return api.UpdateStatus{}, f.err
+}
 func (f *fakeDaemon) ListWorktrees(context.Context) ([]api.WorktreeInfo, error) {
 	return f.worktrees, f.err
 }
