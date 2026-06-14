@@ -26,7 +26,8 @@ interface Props {
 }
 
 export function Sidebar(props: Props) {
-  const { stacks, filter, hideDone } = props;
+  const { searchRef, stacks, target, filter, flashing, hideDone, onFilter, onToggleHideDone, onSelect, onUp, onDown, onRestart } =
+    props;
 
   const view = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -55,15 +56,15 @@ export function Sidebar(props: Props) {
     <nav className="sidebar">
       <div className="search">
         <input
-          ref={props.searchRef}
+          ref={searchRef}
           className="search-input"
           placeholder="filter worktrees & resources…"
           value={filter}
-          onChange={(e) => props.onFilter(e.target.value)}
+          onChange={(e) => onFilter(e.target.value)}
           spellCheck={false}
         />
         {filter ? (
-          <button className="search-clear" onClick={() => props.onFilter("")}>
+          <button className="search-clear" onClick={() => onFilter("")}>
             ×
           </button>
         ) : (
@@ -71,7 +72,7 @@ export function Sidebar(props: Props) {
         )}
       </div>
 
-      <button className={`toggle ${hideDone ? "on" : ""}`} onClick={props.onToggleHideDone}>
+      <button className={`toggle ${hideDone ? "on" : ""}`} onClick={onToggleHideDone}>
         <span className="toggle-box">{hideDone ? "✓" : ""}</span>
         hide finished
         {hiddenCount > 0 ? <span className="toggle-count">{hiddenCount}</span> : null}
@@ -86,12 +87,12 @@ export function Sidebar(props: Props) {
               key={ws.worktree}
               ws={ws}
               resources={resources}
-              target={props.target}
-              flashing={props.flashing}
-              onSelect={props.onSelect}
-              onUp={props.onUp}
-              onDown={props.onDown}
-              onRestart={props.onRestart}
+              target={target}
+              flashing={flashing}
+              onSelect={onSelect}
+              onUp={onUp}
+              onDown={onDown}
+              onRestart={onRestart}
             />
           ))
         )}

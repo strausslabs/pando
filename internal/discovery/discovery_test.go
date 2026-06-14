@@ -66,7 +66,7 @@ func TestFreeUIPortWalksPastBoundPort(t *testing.T) {
 	if err != nil {
 		t.Skipf("preferred port %d not bindable in this env: %v", want, err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	got := FreeUIPort(gcd)
 	if got == want {
 		t.Errorf("FreeUIPort returned the bound port %d; should have walked past it", want)

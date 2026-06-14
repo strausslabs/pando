@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LogLine } from "./types";
 import { LogBuffers } from "./logbuffer";
+
+export interface LogSnapshot {
+  version: number;
+  linesFor: (worktree: string, resource: string) => LogLine[];
+  linesForWorktree: (worktree: string) => LogLine[];
+}
 
 export function useLogStore() {
   const store = useRef(new LogBuffers());
@@ -24,19 +30,19 @@ export function useLogStore() {
     [scheduleFlush],
   );
 
-  const linesFor = useCallback(
-    (worktree: string, resource: string): LogLine[] => store.current.linesFor(worktree, resource),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [version],
-  );
-
-  const linesForWorktree = useCallback(
-    (worktree: string): LogLine[] => store.current.linesForWorktree(worktree),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [version],
-  );
-
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
-  return { append, linesFor, linesForWorktree, version };
+  // The store mutates buffers in place and bumps `version` on flush; binding the
+  // readers to `version` is what makes them (and their callers' memos) honest
+  // dependencies rather than a lint suppression.
+  const snapshot = useMemo<LogSnapshot>(
+    () => ({
+      version,
+      linesFor: (worktree, resource) => store.current.linesFor(worktree, resource),
+      linesForWorktree: (worktree) => store.current.linesForWorktree(worktree),
+    }),
+    [version],
+  );
+
+  return { append, snapshot };
 }

@@ -19,12 +19,12 @@ function line(over: Partial<LogLine> & { seq: number }): LogLine {
 describe("useLogStore", () => {
   test("appended lines are readable and version advances", () => {
     const { result } = renderHook(() => useLogStore());
-    const before = result.current.version;
+    const before = result.current.snapshot.version;
     act(() => {
       result.current.append(line({ seq: 1, text: "hi" }));
     });
-    expect(result.current.linesFor("main", "api").map((l) => l.text)).toEqual(["hi"]);
-    expect(result.current.version).toBeGreaterThan(before);
+    expect(result.current.snapshot.linesFor("main", "api").map((l) => l.text)).toEqual(["hi"]);
+    expect(result.current.snapshot.version).toBeGreaterThan(before);
   });
 
   test("a duplicate seq does not bump the version (no wasted render)", () => {
@@ -32,12 +32,12 @@ describe("useLogStore", () => {
     act(() => {
       result.current.append(line({ seq: 1 }));
     });
-    const after = result.current.version;
+    const after = result.current.snapshot.version;
     act(() => {
       result.current.append(line({ seq: 1 }));
     });
-    expect(result.current.version).toBe(after);
-    expect(result.current.linesFor("main", "api")).toHaveLength(1);
+    expect(result.current.snapshot.version).toBe(after);
+    expect(result.current.snapshot.linesFor("main", "api")).toHaveLength(1);
   });
 
   test("merges a worktree's resources in seq order", () => {
@@ -47,6 +47,6 @@ describe("useLogStore", () => {
       result.current.append(line({ seq: 1, resource: "web" }));
       result.current.append(line({ seq: 2, resource: "api" }));
     });
-    expect(result.current.linesForWorktree("main").map((l) => l.seq)).toEqual([1, 2, 3]);
+    expect(result.current.snapshot.linesForWorktree("main").map((l) => l.seq)).toEqual([1, 2, 3]);
   });
 });

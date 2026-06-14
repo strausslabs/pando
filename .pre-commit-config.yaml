@@ -1,0 +1,64 @@
+# Mirrors the CI gate locally. Install once:
+#   pre-commit install && pre-commit install --hook-type pre-push
+# Run on all files: pre-commit run --all-files
+#
+# commit: fast checks (format, vet, lint, -short tests, UI).
+# push:   the full CI suite (go test -race, including the e2e auto-start test).
+repos:
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: gofmt -l -w
+        language: system
+        types: [go]
+
+      - id: go-vet
+        name: go vet
+        entry: go vet ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: golangci-lint
+        name: golangci-lint
+        entry: golangci-lint run
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: go-test-short
+        name: go test -short
+        entry: go test -short ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: ui-typecheck
+        name: ui typecheck
+        entry: bash -c 'cd ui && bun run typecheck'
+        language: system
+        files: ^ui/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: ui-lint
+        name: ui lint
+        entry: bash -c 'cd ui && bun run lint'
+        language: system
+        files: ^ui/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: ui-test
+        name: ui test
+        entry: bash -c 'cd ui && bun test'
+        language: system
+        files: ^ui/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: go-test-race
+        name: go test -race (full)
+        entry: go test -race -count=1 ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+        stages: [pre-push]

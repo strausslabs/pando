@@ -43,7 +43,7 @@ func spawnDaemon(g *globalFlags, gitDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }()
 
 	cmd := exec.Command(self, "daemon", "--config", g.config)
 	cmd.Stdout = logFile

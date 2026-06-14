@@ -11,6 +11,9 @@ linters:
     - misspell
     - unconvert
     - bodyclose
+  exclusions:
+    paths:
+      - ui/node_modules
 
 issues:
   max-issues-per-linter: 0
