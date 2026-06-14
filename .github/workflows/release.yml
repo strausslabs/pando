@@ -11,9 +11,20 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
     steps:
+      # A strausslabs GitHub App (Contents: write) installed on this repo and
+      # added as a ruleset bypass actor. Its short-lived token can push the
+      # regenerated formula straight to main; the default GITHUB_TOKEN cannot.
+      # If the app secrets are absent the step yields an empty token and the
+      # formula update no-ops.
+      - name: Mint formula-push token
+        id: app
+        if: vars.FORMULA_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.FORMULA_APP_ID }}
+          private-key: ${{ secrets.FORMULA_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # need tags + full history to diff since last release
@@ -95,14 +106,16 @@ jobs:
             dist/*.tar.gz dist/checksums.txt
 
       # Regenerate Formula/pando.rb in this repo so `brew upgrade` tracks every
-      # release. main is ruleset-protected, so the push uses TAP_TOKEN (a PAT
-      # whose owner is an org admin and thus bypasses the ruleset); the default
-      # GITHUB_TOKEN cannot bypass. Without the secret this step no-ops.
+      # release, pushing to ruleset-protected main with the GitHub App token
+      # (the app is a bypass actor; the default GITHUB_TOKEN is not). No app
+      # token -> the step is skipped.
       - name: Update Homebrew formula
-        if: steps.decide.outputs.release == 'true' && env.TAP_TOKEN != ''
+        if: steps.decide.outputs.release == 'true' && steps.app.outputs.token != ''
         env:
           VERSION: ${{ steps.decide.outputs.version }}
           REPO: ${{ github.repository }}
+          APP_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
         run: |
           sha() { awk -v f="$1" '$2==f {print $1}' dist/checksums.txt; }
           dar_arm="$(sha pando-darwin-arm64.tar.gz)"
@@ -154,8 +167,8 @@ jobs:
           end
           EOF
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
           git add Formula/pando.rb
           git commit -m "brew: pando ${VERSION}" || { echo "no formula change"; exit 0; }
-          git push "https://x-access-token:${TAP_TOKEN}@github.com/${REPO}.git" "HEAD:${GITHUB_REF_NAME}"
+          git push "https://x-access-token:${APP_TOKEN}@github.com/${REPO}.git" "HEAD:${GITHUB_REF_NAME}"
