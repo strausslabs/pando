@@ -1,0 +1,3 @@
+# Approvals on protected branches must come from a maintainer.
+# Manage who that is by editing the strausslabs/maintainers team, not this file.
+* @strausslabs/maintainers

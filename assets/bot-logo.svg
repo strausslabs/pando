@@ -1,0 +1,47 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pando release bot">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#101d18"/>
+      <stop offset="1" stop-color="#0b1410"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="256" cy="248" r="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beer" x1="256" y1="196" x2="256" y2="392" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="248" r="200" fill="url(#glow)"/>
+
+  <!-- foam -->
+  <g fill="#e9f5f0">
+    <circle cx="196" cy="176" r="40"/>
+    <circle cx="248" cy="158" r="46"/>
+    <circle cx="304" cy="172" r="42"/>
+    <circle cx="226" cy="196" r="36"/>
+    <circle cx="284" cy="196" r="36"/>
+    <rect x="160" y="176" width="192" height="40" fill="#e9f5f0"/>
+  </g>
+
+  <!-- mug body -->
+  <rect x="160" y="200" width="158" height="200" rx="26" fill="url(#beer)"/>
+
+  <!-- handle -->
+  <path d="M318 236 h34 a44 44 0 0 1 44 44 v44 a44 44 0 0 1 -44 44 h-34"
+        fill="none" stroke="url(#beer)" stroke-width="30" stroke-linecap="round"/>
+
+  <!-- bubbles -->
+  <g fill="#0b1410" opacity="0.28">
+    <circle cx="208" cy="268" r="12"/>
+    <circle cx="252" cy="316" r="14"/>
+    <circle cx="220" cy="352" r="10"/>
+    <circle cx="278" cy="260" r="9"/>
+  </g>
+
+  <!-- base node, echoing the pando root mark -->
+  <rect x="150" y="392" width="178" height="22" rx="11" fill="#2c443c"/>
+</svg>

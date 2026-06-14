@@ -5,7 +5,7 @@
 [![CI](https://github.com/strausslabs/pando/actions/workflows/ci.yml/badge.svg)](https://github.com/strausslabs/pando/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/strausslabs/pando/branch/main/graph/badge.svg)](https://codecov.io/gh/strausslabs/pando)
 [![Release](https://img.shields.io/github/v/release/strausslabs/pando?sort=semver)](https://github.com/strausslabs/pando/releases)
-[![Go Reference](https://pkg.go.dev/badge/github.com/guyStrauss/pando.svg)](https://pkg.go.dev/github.com/guyStrauss/pando)
+[![Docs](https://img.shields.io/badge/docs-pando.star-14b8a6)](docs/config.md)
 
 **Run every git worktree of a repo as one living dev environment.** One daemon
 turns each worktree's `pando.star` into a set of resources — host processes,
