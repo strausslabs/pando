@@ -13,6 +13,8 @@ import (
 	"github.com/guyStrauss/pando/internal/selfupdate"
 )
 
+var errClosed = errors.New("server closed")
+
 type Server struct {
 	ops    api.StackOps
 	logs   *logbuf.Store
@@ -193,5 +195,3 @@ func atoiDefault(s string, def int) int {
 	}
 	return n
 }
-
-var errClosed = errors.New("server closed")

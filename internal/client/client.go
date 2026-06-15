@@ -14,6 +14,8 @@ import (
 	"github.com/guyStrauss/pando/internal/api"
 )
 
+const base = "http://pando"
+
 type Client struct {
 	http *http.Client
 }
@@ -31,8 +33,6 @@ func New(socketPath string) *Client {
 		},
 	}
 }
-
-const base = "http://pando"
 
 func (c *Client) Health(ctx context.Context) error {
 	return c.get(ctx, "/healthz", nil)

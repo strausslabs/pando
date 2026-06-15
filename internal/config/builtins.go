@@ -9,15 +9,16 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// holder captures the single stack a config defines via define_stack(...).
+var (
+	durRe   = regexp.MustCompile(`^(\d+(?:\.\d+)?)(ms|s|m|h)$`)
+	bytesRe = regexp.MustCompile(`^(?i)(\d+(?:\.\d+)?)\s*(b|k|kb|m|mb|g|gb)?$`)
+)
+
 type holder struct {
 	stack starlark.Value
 	set   bool
 }
 
-// builtins is the global namespace a pando.star config sees. No imports: every
-// helper is predeclared, so the "where does this come from" problem the bun DSL
-// had cannot happen.
 func builtins(h *holder) starlark.StringDict {
 	return starlark.StringDict{
 		"define_stack": starlark.NewBuiltin("define_stack", h.defineStack),
@@ -49,8 +50,6 @@ func (h *holder) defineStack(_ *starlark.Thread, _ *starlark.Builtin, args starl
 	return d, nil
 }
 
-// makeMapBuiltin returns a builtin that just packages its keyword arguments into
-// a dict — service(), compose(), etc. are structural, the Go side validates.
 func makeMapBuiltin(name string) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		if len(args) > 0 {
@@ -208,19 +207,10 @@ func asStringList(v starlark.Value) (*starlark.List, error) {
 	return nil, fmt.Errorf("want string or list of strings, got %s", v.Type())
 }
 
-var (
-	durRe   = regexp.MustCompile(`^(\d+(?:\.\d+)?)(ms|s|m|h)$`)
-	bytesRe = regexp.MustCompile(`^(?i)(\d+(?:\.\d+)?)\s*(b|k|kb|m|mb|g|gb)?$`)
-)
-
-// toNanos converts an int (already nanoseconds) or a string like "30s"/"500ms"
-// into a nanosecond count, matching Go's time.Duration JSON.
 func toNanos(v starlark.Value) (int64, error) {
 	return parseQuantity(v, durRe, map[string]float64{"ms": 1e6, "s": 1e9, "m": 60e9, "h": 3600e9}, "duration")
 }
 
-// toBytes converts an int (already bytes) or a string like "256m"/"1g" into a
-// byte count.
 func toBytes(v starlark.Value) (int64, error) {
 	return parseQuantity(v, bytesRe, map[string]float64{"": 1, "b": 1, "k": 1024, "kb": 1024, "m": 1 << 20, "mb": 1 << 20, "g": 1 << 30, "gb": 1 << 30}, "size")
 }

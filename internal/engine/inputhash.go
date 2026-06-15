@@ -13,14 +13,9 @@ import (
 	"github.com/guyStrauss/pando/internal/resource"
 )
 
-// alwaysIgnoreDirs are never walked or watched for onChange. .pando holds the
-// daemon's own state.json, which it rewrites constantly — watching it would make
-// every onChange task rebuild in a loop.
+// .pando holds state.json, which the daemon rewrites constantly — watching it would rebuild every onChange task in a loop.
 var alwaysIgnoreDirs = map[string]bool{".git": true, "node_modules": true, ".pando": true}
 
-// inputHash digests the files a runWhen=onChange resource declares in OnChange,
-// so the scheduler re-runs it only when those inputs actually change. Empty
-// when nothing matches — the scheduler treats an empty hash as "don't skip".
 func (e *Engine) inputHash(root string, r *resource.Resource) string {
 	if len(r.OnChange) == 0 {
 		return ""
@@ -90,9 +85,6 @@ func matchInputs(root, pattern string, ignore []string) []string {
 	return out
 }
 
-// splitGlobBase splits a pattern into the longest leading path with no glob
-// metacharacters — so the walk starts there, not at the whole worktree — and
-// the remaining glob.
 func splitGlobBase(pattern string) (base, glob string) {
 	parts := strings.Split(pattern, "/")
 	for i, p := range parts {

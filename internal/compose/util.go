@@ -8,6 +8,30 @@ import (
 	"strings"
 )
 
+type logWriter struct {
+	emit func(string)
+	buf  bytes.Buffer
+}
+
+func (w *logWriter) Write(p []byte) (int, error) {
+	w.buf.Write(p)
+	for {
+		line, err := w.buf.ReadString('\n')
+		if err != nil {
+			w.buf.Reset()
+			w.buf.WriteString(line)
+			break
+		}
+		w.emit(strings.TrimRight(line, "\r\n"))
+	}
+	return len(p), nil
+}
+
+type lineBuffer struct{ b strings.Builder }
+
+func (l *lineBuffer) Write(p []byte) (int, error) { return l.b.Write(p) }
+func (l *lineBuffer) String() string              { return l.b.String() }
+
 func sortedKeys(m map[string]string) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -48,27 +72,3 @@ func expandHome(path string) string {
 	}
 	return path
 }
-
-type logWriter struct {
-	emit func(string)
-	buf  bytes.Buffer
-}
-
-func (w *logWriter) Write(p []byte) (int, error) {
-	w.buf.Write(p)
-	for {
-		line, err := w.buf.ReadString('\n')
-		if err != nil {
-			w.buf.Reset()
-			w.buf.WriteString(line)
-			break
-		}
-		w.emit(strings.TrimRight(line, "\r\n"))
-	}
-	return len(p), nil
-}
-
-type lineBuffer struct{ b strings.Builder }
-
-func (l *lineBuffer) Write(p []byte) (int, error) { return l.b.Write(p) }
-func (l *lineBuffer) String() string              { return l.b.String() }

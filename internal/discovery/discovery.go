@@ -29,9 +29,6 @@ type Info struct {
 	StartedUnix  int64  `json:"startedUnix"`
 }
 
-// GitCommonDir resolves the repo's shared .git directory. It is identical for
-// every worktree of a repo, so hashing it yields one daemon key per repo
-// regardless of which worktree the caller sits in. Empty when not in a repo.
 func GitCommonDir(ctx context.Context) string {
 	out, err := exec.CommandContext(ctx, "git", "rev-parse", "--git-common-dir").Output()
 	if err != nil {
@@ -45,23 +42,6 @@ func GitCommonDir(ctx context.Context) string {
 		return resolved
 	}
 	return abs
-}
-
-func runtimeDir() string {
-	base := os.Getenv("XDG_RUNTIME_DIR")
-	if base == "" {
-		base = os.TempDir()
-	}
-	return filepath.Join(base, fmt.Sprintf("pando-%d", os.Getuid()))
-}
-
-func repoHash(gitCommonDir string) [32]byte {
-	return sha256.Sum256([]byte(gitCommonDir))
-}
-
-func repoKey(gitCommonDir string) string {
-	sum := repoHash(gitCommonDir)
-	return hex.EncodeToString(sum[:8])
 }
 
 func SocketPath(gitCommonDir string) string {
@@ -84,25 +64,10 @@ func FreeUIPort(gitCommonDir string) int {
 	return want
 }
 
-func portFree(port int) bool {
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	if err != nil {
-		return false
-	}
-	_ = ln.Close()
-	return true
-}
-
-func infoPath(gitCommonDir string) string {
-	return filepath.Join(runtimeDir(), repoKey(gitCommonDir)+".json")
-}
-
 func LogPath(gitCommonDir string) string {
 	return filepath.Join(runtimeDir(), repoKey(gitCommonDir)+".log")
 }
 
-// EnsureDir creates the per-user runtime dir (0700) that holds the socket and
-// info file; the unix listener needs it to exist before Listen.
 func EnsureDir() error {
 	return os.MkdirAll(runtimeDir(), 0o700)
 }
@@ -134,18 +99,6 @@ func Load(gitCommonDir string) (Info, bool) {
 	return info, true
 }
 
-func alive(socket string) bool {
-	conn, err := net.DialTimeout("unix", socket, 200*time.Millisecond)
-	if err != nil {
-		return false
-	}
-	_ = conn.Close()
-	return true
-}
-
-// Resolve returns the daemon info for the current repo and whether its socket
-// is reachable. found is false when the cwd is not a repo or no daemon ever
-// recorded itself; running is false when a recorded daemon is no longer up.
 func Resolve(ctx context.Context) (info Info, found, running bool) {
 	gcd := GitCommonDir(ctx)
 	if gcd == "" {
@@ -156,4 +109,43 @@ func Resolve(ctx context.Context) (info Info, found, running bool) {
 		return Info{}, false, false
 	}
 	return info, true, alive(info.Socket)
+}
+
+func runtimeDir() string {
+	base := os.Getenv("XDG_RUNTIME_DIR")
+	if base == "" {
+		base = os.TempDir()
+	}
+	return filepath.Join(base, fmt.Sprintf("pando-%d", os.Getuid()))
+}
+
+func repoHash(gitCommonDir string) [32]byte {
+	return sha256.Sum256([]byte(gitCommonDir))
+}
+
+func repoKey(gitCommonDir string) string {
+	sum := repoHash(gitCommonDir)
+	return hex.EncodeToString(sum[:8])
+}
+
+func portFree(port int) bool {
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return false
+	}
+	_ = ln.Close()
+	return true
+}
+
+func infoPath(gitCommonDir string) string {
+	return filepath.Join(runtimeDir(), repoKey(gitCommonDir)+".json")
+}
+
+func alive(socket string) bool {
+	conn, err := net.DialTimeout("unix", socket, 200*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
 }

@@ -7,10 +7,12 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// toGo converts the Starlark stack value into the JSON shape of resource.Stack:
-// {name, resources:[{name, kind, ...}]}. The config writes services as a dict
-// keyed by name; here we flatten it into the resource list and infer each
-// resource's kind from which spec it carries.
+var serviceFields = map[string]bool{
+	"deps": true, "every": true, "shared": true, "build": true,
+	"compose": true, "local": true, "task": true, "liveUpdate": true,
+	"hooks": true, "runWhen": true, "onChange": true, "ignore": true, "ready": true,
+}
+
 func toGo(v starlark.Value) (any, error) {
 	root, err := starToGo(v)
 	if err != nil {
@@ -44,12 +46,6 @@ func toGo(v starlark.Value) (any, error) {
 	return out, nil
 }
 
-var serviceFields = map[string]bool{
-	"deps": true, "every": true, "shared": true, "build": true,
-	"compose": true, "local": true, "task": true, "liveUpdate": true,
-	"hooks": true, "runWhen": true, "onChange": true, "ignore": true, "ready": true,
-}
-
 func normalizeResource(name string, svc map[string]any) (map[string]any, error) {
 	res := map[string]any{"name": name, "kind": kindOf(svc)}
 	for k, v := range svc {
@@ -61,8 +57,6 @@ func normalizeResource(name string, svc map[string]any) (map[string]any, error) 
 	return res, nil
 }
 
-// kindOf infers a resource's kind from the spec it carries: a local/task spec
-// wins, otherwise it is a compose resource.
 func kindOf(svc map[string]any) string {
 	switch {
 	case svc["local"] != nil:
