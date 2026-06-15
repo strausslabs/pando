@@ -32,7 +32,7 @@ func daemonCmd(g *globalFlags, version string) *cobra.Command {
 		Use:   "daemon",
 		Short: "Run the Pando daemon (low-level; prefer `pando start`)",
 		RunE: func(c *cobra.Command, args []string) error {
-			return runDaemon(g, version, tcpAddr, false)
+			return runDaemonSignal(g, version, tcpAddr, false)
 		},
 	}
 	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "auto", "loopback address for the web UI (\"auto\" = repo-derived port, empty to disable)")
@@ -45,21 +45,24 @@ func startCmd(g *globalFlags, version string) *cobra.Command {
 		Use:   "start",
 		Short: "Start Pando: run the daemon and bring all worktrees up",
 		RunE: func(c *cobra.Command, args []string) error {
-			return runDaemon(g, version, tcpAddr, true)
+			return runDaemonSignal(g, version, tcpAddr, true)
 		},
 	}
 	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "auto", "loopback address for the web UI (\"auto\" = repo-derived port, empty to disable)")
 	return cmd
 }
 
-func runDaemon(g *globalFlags, version, tcpAddr string, autoUp bool) error {
+func runDaemonSignal(g *globalFlags, version, tcpAddr string, autoUp bool) error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	return runDaemon(ctx, g, version, tcpAddr, autoUp)
+}
+
+func runDaemon(ctx context.Context, g *globalFlags, version, tcpAddr string, autoUp bool) error {
 	loader, err := config.NewLoader()
 	if err != nil {
 		return err
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	gitDir := discovery.GitCommonDir(ctx)
 	socket := g.socket

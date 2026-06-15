@@ -1,0 +1,62 @@
+package compose
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/client"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/guyStrauss/pando/internal/scheduler"
+)
+
+type fakeDockerCli struct {
+	client.APIClient
+	startErr error
+	removed  []string
+}
+
+func (f *fakeDockerCli) ImageInspectWithRaw(context.Context, string) (types.ImageInspect, []byte, error) {
+	return types.ImageInspect{}, nil, nil
+}
+func (f *fakeDockerCli) ContainerCreate(context.Context, *container.Config, *container.HostConfig, *network.NetworkingConfig, *ocispec.Platform, string) (container.CreateResponse, error) {
+	return container.CreateResponse{ID: "cid"}, nil
+}
+func (f *fakeDockerCli) ContainerStart(context.Context, string, container.StartOptions) error {
+	return f.startErr
+}
+func (f *fakeDockerCli) ContainerStop(context.Context, string, container.StopOptions) error {
+	return nil
+}
+func (f *fakeDockerCli) ContainerRemove(_ context.Context, name string, _ container.RemoveOptions) error {
+	f.removed = append(f.removed, name)
+	return nil
+}
+
+func TestRunRemovesContainerWhenStartFails(t *testing.T) {
+	fake := &fakeDockerCli{startErr: fmt.Errorf("oom")}
+	b := &Backend{cli: fake, sink: &fakeSink{}, clock: func() time.Time { return time.Unix(1, 0) }}
+	r := &resource.Resource{Name: "api", Kind: resource.KindCompose, Compose: &resource.ComposeSpec{Image: "alpine"}}
+	env := scheduler.Env{Worktree: "main", Project: "pando-main", Ports: map[string]int{}, Vars: map[string]string{}}
+
+	err := b.run(context.Background(), r, env, nopReporter{})
+	if err == nil {
+		t.Fatal("run should fail when ContainerStart errors")
+	}
+	want := containerName(env.Project, r.Name)
+	got := 0
+	for _, n := range fake.removed {
+		if n == want {
+			got++
+		}
+	}
+	if got < 2 {
+		t.Errorf("expected cleanup removal after failed start; removed %v", fake.removed)
+	}
+}

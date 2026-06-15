@@ -15,8 +15,15 @@ type fakeDaemon struct {
 	logs      []api.LogLine
 	execResp  api.ExecResult
 	ups       []string
+	downs     []string
 	restarts  [][2]string
+	lastQuery api.LogQuery
 	err       error
+
+	logsErr    error
+	downErr    error
+	restartErr error
+	execErr    error
 }
 
 func (f *fakeDaemon) Status(context.Context) ([]api.WorktreeStatus, error) {
@@ -28,20 +35,24 @@ func (f *fakeDaemon) Version(context.Context) (api.UpdateStatus, error) {
 func (f *fakeDaemon) ListWorktrees(context.Context) ([]api.WorktreeInfo, error) {
 	return f.worktrees, f.err
 }
-func (f *fakeDaemon) Logs(context.Context, api.LogQuery) ([]api.LogLine, error) {
-	return f.logs, f.err
+func (f *fakeDaemon) Logs(_ context.Context, q api.LogQuery) ([]api.LogLine, error) {
+	f.lastQuery = q
+	return f.logs, f.logsErr
 }
 func (f *fakeDaemon) Up(_ context.Context, wt string, _ bool) error {
 	f.ups = append(f.ups, wt)
 	return f.err
 }
-func (f *fakeDaemon) Down(context.Context, string) error { return f.err }
+func (f *fakeDaemon) Down(_ context.Context, wt string) error {
+	f.downs = append(f.downs, wt)
+	return f.downErr
+}
 func (f *fakeDaemon) Restart(_ context.Context, wt, res string) error {
 	f.restarts = append(f.restarts, [2]string{wt, res})
-	return f.err
+	return f.restartErr
 }
 func (f *fakeDaemon) Exec(context.Context, api.ExecRequest) (api.ExecResult, error) {
-	return f.execResp, f.err
+	return f.execResp, f.execErr
 }
 
 func deps(d *fakeDaemon, found, running bool) Deps {
@@ -188,6 +199,126 @@ func TestDaemonErrorBecomesToolError(t *testing.T) {
 	res, _, _ := statusTool(deps(d, true, true))(context.Background(), nil, struct{}{})
 	if res == nil || !res.IsError {
 		t.Error("a daemon error should surface as a tool error result, not a hard failure")
+	}
+}
+
+func TestLogsToolDefaultsTail(t *testing.T) {
+	d := &fakeDaemon{
+		worktrees: []api.WorktreeInfo{{Slug: "main"}},
+		logs:      []api.LogLine{line("a"), line("b")},
+	}
+	res, out, _ := logsTool(deps(d, true, true))(context.Background(), nil, LogsIn{Resource: "api"})
+	if res != nil {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	if out.Worktree != "main" || out.Resource != "api" || len(out.Lines) != 2 {
+		t.Errorf("logs out wrong: %+v", out)
+	}
+	if d.lastQuery.Tail != 200 {
+		t.Errorf("default tail should be 200, got %d", d.lastQuery.Tail)
+	}
+}
+
+func TestLogsToolExplicitTailAndGrep(t *testing.T) {
+	d := &fakeDaemon{worktrees: []api.WorktreeInfo{{Slug: "main"}}}
+	_, _, _ = logsTool(deps(d, true, true))(context.Background(), nil,
+		LogsIn{Resource: "api", Tail: 25, Grep: "err"})
+	if d.lastQuery.Tail != 25 || d.lastQuery.Grep != "err" {
+		t.Errorf("tail/grep not forwarded: %+v", d.lastQuery)
+	}
+}
+
+func TestLogsToolConnectError(t *testing.T) {
+	d := &fakeDaemon{}
+	res, _, _ := logsTool(deps(d, false, false))(context.Background(), nil, LogsIn{Resource: "api"})
+	if res == nil || !res.IsError {
+		t.Error("no daemon should be an error result")
+	}
+}
+
+func TestLogsToolDaemonError(t *testing.T) {
+	d := &fakeDaemon{worktrees: []api.WorktreeInfo{{Slug: "main"}}, logsErr: fmt.Errorf("boom")}
+	res, _, _ := logsTool(deps(d, true, true))(context.Background(), nil, LogsIn{Resource: "api"})
+	if res == nil || !res.IsError {
+		t.Error("Logs error should surface as a tool error result")
+	}
+}
+
+func TestDownTool(t *testing.T) {
+	d := &fakeDaemon{worktrees: []api.WorktreeInfo{{Slug: "only"}}}
+	res, out, _ := downTool(deps(d, true, true))(context.Background(), nil, WorktreeIn{})
+	if res != nil {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	if !out.OK || out.Worktree != "only" {
+		t.Errorf("down out wrong: %+v", out)
+	}
+	if len(d.downs) != 1 || d.downs[0] != "only" {
+		t.Errorf("Down not called for resolved worktree: %v", d.downs)
+	}
+}
+
+func TestDownToolError(t *testing.T) {
+	d := &fakeDaemon{worktrees: []api.WorktreeInfo{{Slug: "only"}}, downErr: fmt.Errorf("boom")}
+	res, _, _ := downTool(deps(d, true, true))(context.Background(), nil, WorktreeIn{})
+	if res == nil || !res.IsError {
+		t.Error("Down error should surface as a tool error result")
+	}
+}
+
+func TestExecToolRoutesAndErrors(t *testing.T) {
+	d := &fakeDaemon{worktrees: []api.WorktreeInfo{{Slug: "main"}}, execResp: api.ExecResult{Stdout: "ok"}}
+	res, out, _ := execTool(deps(d, true, true))(context.Background(), nil, ExecIn{Resource: "api", Cmd: []string{"ls"}})
+	if res != nil {
+		t.Fatalf("unexpected error: %+v", res)
+	}
+	if out.Stdout != "ok" {
+		t.Errorf("exec result not returned: %+v", out)
+	}
+
+	d2 := &fakeDaemon{worktrees: []api.WorktreeInfo{{Slug: "main"}}, execErr: fmt.Errorf("boom")}
+	res, _, _ = execTool(deps(d2, true, true))(context.Background(), nil, ExecIn{Resource: "api", Cmd: []string{"ls"}})
+	if res == nil || !res.IsError {
+		t.Error("Exec error should surface as a tool error result")
+	}
+}
+
+func TestRestartToolConnectAndError(t *testing.T) {
+	res, _, _ := restartTool(deps(&fakeDaemon{}, false, false))(context.Background(), nil, RestartIn{Resource: "api"})
+	if res == nil || !res.IsError {
+		t.Error("no daemon should be an error result")
+	}
+
+	d := &fakeDaemon{worktrees: []api.WorktreeInfo{{Slug: "main"}}, restartErr: fmt.Errorf("boom")}
+	res, _, _ = restartTool(deps(d, true, true))(context.Background(), nil, RestartIn{Resource: "api"})
+	if res == nil || !res.IsError {
+		t.Error("Restart error should surface as a tool error result")
+	}
+}
+
+func TestResolveWorktreeNoWorktrees(t *testing.T) {
+	d := &fakeDaemon{worktrees: nil}
+	res, _, _ := upTool(deps(d, true, true))(context.Background(), nil, WorktreeIn{})
+	if res == nil || !res.IsError {
+		t.Error("zero worktrees with none given should be an error result")
+	}
+}
+
+func TestResolveWorktreeListError(t *testing.T) {
+	d := &fakeDaemon{err: fmt.Errorf("list failed")}
+	res, _, _ := downTool(deps(d, true, true))(context.Background(), nil, WorktreeIn{})
+	if res == nil || !res.IsError {
+		t.Error("ListWorktrees error should surface as a tool error result")
+	}
+}
+
+func TestNewServerRegistersTools(t *testing.T) {
+	if s := NewServer("v1.2.3", nil); s == nil {
+		t.Fatal("NewServer returned nil")
+	}
+	d := deps(&fakeDaemon{}, true, true)
+	if s := NewServer("v1", &d); s == nil {
+		t.Fatal("NewServer with injected deps returned nil")
 	}
 }
 

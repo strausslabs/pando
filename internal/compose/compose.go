@@ -102,6 +102,7 @@ func (b *Backend) run(ctx context.Context, r *resource.Resource, env scheduler.E
 		return fmt.Errorf("create %s: %w", name, err)
 	}
 	if err := b.cli.ContainerStart(ctx, created.ID, container.StartOptions{}); err != nil {
+		b.removeContainer(ctx, env.Project, r.Name)
 		return fmt.Errorf("start %s: %w", name, err)
 	}
 	rep.Phase(scheduler.PhaseRunning)

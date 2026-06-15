@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -52,4 +53,25 @@ func TestInstallSkillFailsOnBadStatus(t *testing.T) {
 			t.Fatal("expected error on 404, got nil")
 		}
 	})
+}
+
+func TestRegisterMCPWithoutClaude(t *testing.T) {
+	t.Setenv("PATH", t.TempDir()) // no `claude` on PATH
+	out := captureStdout(t, func() { registerMCP("/usr/local/bin/pando") })
+	if !strings.Contains(out, "claude mcp add pando") {
+		t.Errorf("should print manual instructions when claude is absent:\n%s", out)
+	}
+}
+
+func TestRegisterMCPWithFakeClaude(t *testing.T) {
+	dir := t.TempDir()
+	claude := filepath.Join(dir, "claude")
+	if err := os.WriteFile(claude, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	out := captureStdout(t, func() { registerMCP("/usr/local/bin/pando") })
+	if !strings.Contains(out, "registered MCP server") {
+		t.Errorf("should report success when claude succeeds:\n%s", out)
+	}
 }
