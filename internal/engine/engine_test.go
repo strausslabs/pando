@@ -376,6 +376,9 @@ func TestTriggeredMatching(t *testing.T) {
 		{"recursive glob match", []string{"**/*.go"}, []string{"/work/src/pkg/a.go"}, true},
 		{"relative glob match", []string{"src/*.go"}, []string{"/work/src/a.go"}, true},
 		{"no match", []string{"*.py"}, []string{"/work/src/a.go"}, false},
+		{"directory trigger matches file under it", []string{"./src"}, []string{"/work/src/Main.java"}, true},
+		{"directory trigger matches nested file", []string{"src"}, []string{"/work/src/com/x/Main.java"}, true},
+		{"directory trigger no match outside", []string{"./src"}, []string{"/work/test/Main.java"}, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

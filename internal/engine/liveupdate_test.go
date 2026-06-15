@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/guyStrauss/pando/internal/api"
@@ -24,6 +25,35 @@ func TestLiveRunReportsExitCode(t *testing.T) {
 	eng, as, r := liveStack(t)
 	if err := eng.liveRun(context.Background(), as, r, "exit 3"); err == nil {
 		t.Error("liveRun should return error on non-zero exit")
+	}
+}
+
+func TestLiveLocalRunRunsOnHostInWorktree(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	dir := t.TempDir()
+	r := &resource.Resource{Name: "api", Kind: resource.KindCompose}
+	as := &activeStack{
+		info: api.WorktreeInfo{Path: dir, Slug: "main"},
+		env:  scheduler.Env{Worktree: "main", Project: "pando", Ports: map[string]int{"api": 8123}},
+	}
+
+	if err := eng.liveLocalRun(context.Background(), as, r, "pwd; echo port=$PORT_api"); err != nil {
+		t.Fatalf("liveLocalRun: %v", err)
+	}
+
+	lines := strings.Join(logs.Text("main", "api"), "\n")
+	if !strings.Contains(lines, dir) {
+		t.Errorf("local_run should run in the worktree dir %q:\n%s", dir, lines)
+	}
+	if !strings.Contains(lines, "port=8123") {
+		t.Errorf("local_run should expand $PORT_api:\n%s", lines)
+	}
+}
+
+func TestLiveLocalRunReportsExitCode(t *testing.T) {
+	eng, as, r := liveStack(t)
+	if err := eng.liveLocalRun(context.Background(), as, r, "exit 4"); err == nil {
+		t.Error("liveLocalRun should return error on non-zero exit")
 	}
 }
 

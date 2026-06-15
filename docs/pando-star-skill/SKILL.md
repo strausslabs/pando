@@ -34,8 +34,8 @@ define_stack(
 
 > **The #1 mistake:** writing `import`. There are no imports. Every helper
 > (`define_stack`, `service`, `cmd`, `task`, `compose`, `build`, `healthcheck`,
-> `http_get`, `tcp`, `log_match`, `exit0`, `sync`, `run`, `restart_container`,
-> `duration`, `bytes`) is already in scope. Just call it.
+> `http_get`, `tcp`, `log_match`, `exit0`, `sync`, `run`, `local_run`,
+> `restart_container`, `duration`, `bytes`) is already in scope. Just call it.
 
 ---
 
@@ -154,6 +154,9 @@ targets become `local`. Order them with `deps`.
 5. **Shared infra?** `shared = True` — brought up once for the whole repo. A
    shared resource may depend **only** on other shared resources.
 6. **Fast container iteration?** `liveUpdate = [sync(...), run(...), restart_container()]`.
+   `run(...)` executes **inside** the container; `local_run(...)` executes **on the
+   host** (worktree dir) — use it when the toolchain lives on your machine, e.g.
+   `[local_run("mvn package", trigger=["./src"]), sync("./target/app.jar", "/app/app.jar"), restart_container()]`.
    `restart_container()` bounces the entrypoint **in place** so synced files survive
    (a recreate would drop them); omit it if the process hot-reloads on its own.
 7. **Rerun a task on source change?** `runWhen = "onChange"`, `onChange = [globs]`,
@@ -176,8 +179,9 @@ tcp(target, timeout?, interval?)
 log_match(pattern, timeout?, interval?)   # pattern is a regex
 exit0(timeout?, interval?)
 
-sync(local, container)                # liveUpdate: copy files in
-run(cmd, trigger?)                     # liveUpdate: run a command (trigger scopes it)
+sync(local, container)                # liveUpdate: copy files into the container
+run(cmd, trigger?)                     # liveUpdate: run a command inside the container (trigger scopes it)
+local_run(cmd, trigger?)               # liveUpdate: run a command on the host, in the worktree (e.g. a host build)
 restart_container()                    # liveUpdate: restart entrypoint in place (synced files survive)
 
 duration("30s")  bytes("256m")        # explicit coercion; strings also work inline

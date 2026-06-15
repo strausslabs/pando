@@ -158,7 +158,8 @@ In-place updates to a running resource without a full restart — ordered steps:
 | step | signature | does |
 |------|-----------|------|
 | `sync` | `sync(local, container)` | Copy `local` path into the container at `container`. |
-| `run` | `run(cmd, trigger?)` | Run `cmd` inside the resource. `trigger` (string or list) scopes it to changes under those paths. |
+| `run` | `run(cmd, trigger?)` | Run `cmd` **inside** the container. `trigger` (string or list) scopes it to changes under those paths. |
+| `local_run` | `local_run(cmd, trigger?)` | Run `cmd` **on the host** (in the worktree dir, `$PORT_*`/vars expanded). For a host-side build whose artifact a later `sync` copies into the container. `trigger` scopes it and registers those paths for watching. |
 | `restart_container` | `restart_container()` | Restart the entrypoint **in place** (`docker restart` the same container). Files copied in by `sync` survive — a recreate would discard them. For a host process it relaunches the process. |
 
 ```python
@@ -169,10 +170,21 @@ liveUpdate = [
 ]
 ```
 
-`restart_container` restarts the same container rather than recreating it, so
-the source `sync` copied in is still there when the entrypoint comes back. Put
-it last, and only when the process doesn't reload synced files on its own (an
-interpreter with `--reload` needs just `sync`).
+A host-side build (e.g. Java) compiled on the host, then the jar copied in:
+
+```python
+liveUpdate = [
+    local_run("mvn -q package", trigger = ["./src"]),   # build on the host
+    sync("./target/app.jar", "/app/app.jar"),           # copy the artifact in
+    restart_container(),                                # bounce the entrypoint
+]
+```
+
+`run` executes inside the container; `local_run` executes on the host. Use
+`local_run` when the toolchain (a JDK, a cross-compiler) lives on your machine,
+not in the image. `restart_container` restarts the same container rather than
+recreating it, so files `sync` copied in are still there when the entrypoint
+comes back — put it last, and skip it when the process reloads on its own.
 
 ---
 

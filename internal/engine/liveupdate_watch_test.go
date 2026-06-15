@@ -17,11 +17,12 @@ func TestLiveUpdatePaths(t *testing.T) {
 			{Sync: &resource.SyncRule{Local: "src", Container: "/app"}},
 			{Sync: &resource.SyncRule{Local: "/abs/dir", Container: "/app2"}},
 			{Run: "make"},
+			{LocalRun: "mvn package", Trigger: []string{"javasrc"}},
 		},
 		Local: &resource.LocalSpec{Watch: []string{"watched", ""}},
 	}
 	got := liveUpdatePaths(r, root)
-	want := []string{"/repo/src", "/abs/dir", "/repo/watched"}
+	want := []string{"/repo/src", "/abs/dir", "/repo/javasrc", "/repo/watched"}
 	if len(got) != len(want) {
 		t.Fatalf("liveUpdatePaths = %v, want %v", got, want)
 	}
@@ -92,5 +93,10 @@ func TestStartLiveUpdateWatchesAndStops(t *testing.T) {
 	as.mu.Unlock()
 	if stopped != nil {
 		t.Error("stopLiveUpdate should clear the live watcher")
+	}
+	select {
+	case <-live.done:
+	default:
+		t.Error("stopWatchers must block until the watcher loop returns (closes the fsnotify watcher) so the worktree dir is free to remove")
 	}
 }
