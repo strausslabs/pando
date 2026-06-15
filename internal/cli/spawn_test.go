@@ -41,6 +41,16 @@ func TestUpAutoStartsDaemon(t *testing.T) {
 	if again, _ := discovery.Load(gitDir); again.PID != info.PID {
 		t.Errorf("second up started a rival daemon (pid %d -> %d)", info.PID, again.PID)
 	}
+
+	if err := stopDaemon(context.Background()); err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	if reachable(info.Socket) == nil {
+		t.Error("daemon still reachable after stop")
+	}
+	if _, ok := discovery.Load(gitDir); ok {
+		t.Error("discovery info not removed after stop")
+	}
 }
 
 type testRepo struct {
@@ -78,7 +88,7 @@ define_stack(
 	r.git("add", "-A")
 	r.git("commit", "-qm", "init")
 	t.Chdir(r.dir)
-	t.Cleanup(func() { _, _ = r.run("down") })
+	t.Cleanup(func() { _, _ = r.run("stop") })
 	return r
 }
 

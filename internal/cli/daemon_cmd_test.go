@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +27,51 @@ func TestMCPCmdReturnsOnCancelledContext(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("mcp command did not return on cancelled context")
+	}
+}
+
+func TestStopDaemonNoDaemon(t *testing.T) {
+	runtimeDir, err := os.MkdirTemp("", "pd-rt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(runtimeDir) })
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
+	t.Chdir(t.TempDir())
+
+	cmd := stopCmd(&globalFlags{})
+	cmd.SetArgs(nil)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("stop should error when no daemon is running")
+	}
+}
+
+func TestWaitForSocketGoneTimesOut(t *testing.T) {
+	sock := liveDaemon(t, &stubOps{})
+	err := waitForSocketGone(context.Background(), sock, 300*time.Millisecond)
+	if err == nil {
+		t.Fatal("waitForSocketGone should time out while the daemon stays reachable")
+	}
+}
+
+func TestExecuteHelp(t *testing.T) {
+	savedOut, savedErr := os.Stdout, os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stdout, os.Stderr = w, w
+	saved := os.Args
+	os.Args = []string{"pando", "--help"}
+	err := Execute("v-test")
+	os.Args = saved
+	_ = w.Close()
+	os.Stdout, os.Stderr = savedOut, savedErr
+	if err != nil {
+		t.Fatalf("Execute --help: %v", err)
+	}
+	out, _ := io.ReadAll(r)
+	for _, want := range []string{"start", "stop", "daemon"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("help output missing %q subcommand:\n%s", want, out)
+		}
 	}
 }
 

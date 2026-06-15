@@ -33,6 +33,7 @@ func Execute(version string) error {
 
 	root.AddCommand(
 		startCmd(g, version),
+		stopCmd(g),
 		daemonCmd(g, version),
 		mcpCmd(g, version),
 		setupCmd(g),

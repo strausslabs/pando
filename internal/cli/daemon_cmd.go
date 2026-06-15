@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/guyStrauss/pando/internal/client"
 	"github.com/guyStrauss/pando/internal/compose"
 	"github.com/guyStrauss/pando/internal/config"
 	"github.com/guyStrauss/pando/internal/daemon"
@@ -52,10 +53,51 @@ func startCmd(g *globalFlags, version string) *cobra.Command {
 	return cmd
 }
 
+func stopCmd(g *globalFlags) *cobra.Command {
+	return &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the Pando daemon for this repo",
+		RunE: func(c *cobra.Command, args []string) error {
+			return stopDaemon(ctx())
+		},
+	}
+}
+
 func runDaemonSignal(g *globalFlags, version, tcpAddr string, autoUp bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	return runDaemon(ctx, g, version, tcpAddr, autoUp)
+}
+
+func stopDaemon(ctx context.Context) error {
+	info, found, running := discovery.Resolve(ctx)
+	if !found || !running {
+		return fmt.Errorf("no running pando daemon for this repo")
+	}
+	if err := syscall.Kill(info.PID, syscall.SIGTERM); err != nil {
+		return fmt.Errorf("stop daemon %d: %w", info.PID, err)
+	}
+	if err := waitForSocketGone(ctx, info.Socket, 10*time.Second); err != nil {
+		return err
+	}
+	discovery.Remove(info.GitCommonDir)
+	fmt.Printf("pando daemon stopped (pid %d)\n", info.PID)
+	return nil
+}
+
+func waitForSocketGone(ctx context.Context, socket string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	cl := client.New(socket)
+	for time.Now().Before(deadline) {
+		c, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+		err := cl.Health(c)
+		cancel()
+		if err != nil {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("daemon did not stop within %s", timeout)
 }
 
 func runDaemon(ctx context.Context, g *globalFlags, version, tcpAddr string, autoUp bool) error {

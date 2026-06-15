@@ -95,6 +95,21 @@ func TestListUsesGitRunner(t *testing.T) {
 	}
 }
 
+func TestListPropagatesGitError(t *testing.T) {
+	m := &Manager{git: func(ctx context.Context, args ...string) (string, error) {
+		return "", context.DeadlineExceeded
+	}}
+	if _, err := m.List(context.Background()); err == nil {
+		t.Error("List should propagate the git runner error")
+	}
+}
+
+func TestNewManagerUsesRealGit(t *testing.T) {
+	if NewManager().git == nil {
+		t.Error("NewManager should wire a git runner")
+	}
+}
+
 func TestPortAllocationDeterministic(t *testing.T) {
 	a := DefaultAllocator()
 	path := "/Users/guy/Projects/pando-feat-x"
