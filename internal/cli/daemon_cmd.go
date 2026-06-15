@@ -180,7 +180,7 @@ func runDaemon(ctx context.Context, g *globalFlags, version, tcpAddr string, aut
 		st := selfupdate.Check(ctx, version, filepath.Join(stateDir, "update.json"), time.Now())
 		srv.SetUpdate(st)
 		if st.Available {
-			fmt.Fprintf(os.Stderr, "a newer pando is available: %s → %s · brew upgrade pando\n", st.Current, st.Latest)
+			fmt.Fprintf(os.Stderr, updateAvailableMsg, st.Current, st.Latest)
 		}
 	}()
 

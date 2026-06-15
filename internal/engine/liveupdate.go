@@ -114,9 +114,5 @@ func (e *Engine) liveLog(worktree, name, format string, args ...any) {
 }
 
 func (e *Engine) liveLogStream(worktree, name string, stream logbuf.Stream, text string) {
-	if e.cfg.Logs == nil {
-		return
-	}
-	e.cfg.Logs.Append(worktree, name, stream, text,
-		func() logbuf.Line { return logbuf.Line{Time: e.cfg.Clock()} })
+	e.logAppend(worktree, name, stream, text)
 }

@@ -12,8 +12,12 @@ type Scope struct {
 	Vars  map[string]string
 }
 
+func (s Scope) isPortVar(name string) bool {
+	return strings.HasPrefix(name, PortPrefix)
+}
+
 func (s Scope) lookup(name string) (string, bool) {
-	if strings.HasPrefix(name, PortPrefix) {
+	if s.isPortVar(name) {
 		svc := strings.TrimPrefix(name, PortPrefix)
 		if p, ok := s.Ports[svc]; ok {
 			return fmt.Sprintf("%d", p), true
@@ -75,7 +79,7 @@ func (s Scope) expand(in string, shell bool) (string, error) {
 		}
 		val, ok := s.lookup(name)
 		if !ok {
-			if shell && !strings.HasPrefix(name, PortPrefix) {
+			if shell && !s.isPortVar(name) {
 				b.WriteString(in[i : i+1+n])
 				i += 1 + n
 				continue
@@ -103,7 +107,7 @@ func (s Scope) resolveExpr(expr, src string, shell bool) (string, bool, error) {
 	if hasDef {
 		return def, true, nil
 	}
-	if shell && !strings.HasPrefix(name, PortPrefix) {
+	if shell && !s.isPortVar(name) {
 		return "", false, nil
 	}
 	return "", false, fmt.Errorf("undefined variable ${%s} in %q", name, src)

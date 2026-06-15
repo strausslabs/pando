@@ -13,6 +13,8 @@ import (
 
 const gitWorktreesKey = "__git_worktrees__"
 
+const configKeyPrefix = "cfg:"
+
 type Engine interface {
 	Register(wt worktree.Worktree, stack *resource.Stack) error
 	Reload(ctx context.Context, slug string, next *resource.Stack) error
@@ -156,10 +158,10 @@ func (r *Reconciler) addWorktree(ctx context.Context, wt worktree.Worktree) {
 		r.eng.ReportConfigError(wt.Slug, wt.Branch, err.Error())
 		r.opts.OnError(fmt.Errorf("worktree %q config: %w", wt.Slug, err))
 		// Watch the dir anyway so a later fix is picked up.
-		_ = r.w.Add(filepath.Dir(cfg), "cfg:"+wt.Slug)
+		_ = r.w.Add(filepath.Dir(cfg), configKeyPrefix+wt.Slug)
 		r.mu.Lock()
 		r.tracked[wt.Slug] = wt
-		r.configOf["cfg:"+wt.Slug] = wt.Slug
+		r.configOf[configKeyPrefix+wt.Slug] = wt.Slug
 		r.mu.Unlock()
 		return
 	}
@@ -170,7 +172,7 @@ func (r *Reconciler) addWorktree(ctx context.Context, wt worktree.Worktree) {
 	}
 	r.eng.ClearConfigError(wt.Slug)
 
-	key := "cfg:" + wt.Slug
+	key := configKeyPrefix + wt.Slug
 	r.mu.Lock()
 	r.tracked[wt.Slug] = wt
 	r.configOf[key] = wt.Slug
@@ -186,7 +188,7 @@ func (r *Reconciler) removeWorktree(ctx context.Context, slug string, wt worktre
 	if err := r.eng.Deregister(ctx, slug); err != nil {
 		r.opts.OnError(fmt.Errorf("deregister %q: %w", slug, err))
 	}
-	key := "cfg:" + slug
+	key := configKeyPrefix + slug
 	r.w.Remove(filepath.Dir(r.configPath(wt)))
 	r.mu.Lock()
 	delete(r.tracked, slug)

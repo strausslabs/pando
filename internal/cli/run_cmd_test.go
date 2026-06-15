@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/client"
 	"github.com/guyStrauss/pando/internal/daemon"
 	"github.com/guyStrauss/pando/internal/logbuf"
 )
@@ -74,19 +73,10 @@ func liveDaemon(t *testing.T, ops api.StackOps) string {
 	go func() { _ = srv.Serve(ctx, sock) }()
 	t.Cleanup(cancel)
 
-	cl := client.New(sock)
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		hctx, hcancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-		err := cl.Health(hctx)
-		hcancel()
-		if err == nil {
-			return sock
-		}
-		time.Sleep(20 * time.Millisecond)
+	if err := waitForSocket(context.Background(), sock, true, 3*time.Second); err != nil {
+		t.Fatalf("daemon never came up: %v", err)
 	}
-	t.Fatal("daemon never came up")
-	return ""
+	return sock
 }
 
 func TestCommandsAgainstLiveDaemon(t *testing.T) {
@@ -94,25 +84,17 @@ func TestCommandsAgainstLiveDaemon(t *testing.T) {
 	sock := liveDaemon(t, ops)
 	g := &globalFlags{socket: sock}
 
-	run := func(c interface {
-		SetArgs([]string)
-		Execute() error
-	}, args ...string) error {
-		c.SetArgs(args)
-		return c.Execute()
-	}
-
-	if err := run(upCmd(g), "--worktree", "main"); err != nil {
+	if err := runCmd(upCmd(g), "--worktree", "main"); err != nil {
 		t.Errorf("up: %v", err)
 	}
-	if err := run(downCmd(g), "--worktree", "main"); err != nil {
+	if err := runCmd(downCmd(g), "--worktree", "main"); err != nil {
 		t.Errorf("down: %v", err)
 	}
-	if err := run(restartCmd(g), "--worktree", "main", "api"); err != nil {
+	if err := runCmd(restartCmd(g), "--worktree", "main", "api"); err != nil {
 		t.Errorf("restart: %v", err)
 	}
 	out := captureStdout(t, func() {
-		if err := run(statusCmd(g)); err != nil {
+		if err := runCmd(statusCmd(g)); err != nil {
 			t.Errorf("status: %v", err)
 		}
 	})
@@ -120,7 +102,7 @@ func TestCommandsAgainstLiveDaemon(t *testing.T) {
 		t.Errorf("status output missing resource: %s", out)
 	}
 	out = captureStdout(t, func() {
-		if err := run(logsCmd(g), "--worktree", "main", "api"); err != nil {
+		if err := runCmd(logsCmd(g), "--worktree", "main", "api"); err != nil {
 			t.Errorf("logs: %v", err)
 		}
 	})
@@ -128,7 +110,7 @@ func TestCommandsAgainstLiveDaemon(t *testing.T) {
 		t.Errorf("logs output missing line: %s", out)
 	}
 	out = captureStdout(t, func() {
-		if err := run(worktreesCmd(g)); err != nil {
+		if err := runCmd(worktreesCmd(g)); err != nil {
 			t.Errorf("worktrees: %v", err)
 		}
 	})
