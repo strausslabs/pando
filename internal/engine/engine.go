@@ -7,14 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/dag"
-	"github.com/guyStrauss/pando/internal/interp"
-	"github.com/guyStrauss/pando/internal/logbuf"
-	"github.com/guyStrauss/pando/internal/probe"
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/scheduler"
-	"github.com/guyStrauss/pando/internal/worktree"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/dag"
+	"github.com/strausslabs/pando/internal/interp"
+	"github.com/strausslabs/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/probe"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/scheduler"
+	"github.com/strausslabs/pando/internal/worktree"
 )
 
 const configResource = "pando.config"

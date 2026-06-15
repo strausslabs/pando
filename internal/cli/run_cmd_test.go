@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/daemon"
-	"github.com/guyStrauss/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/daemon"
+	"github.com/strausslabs/pando/internal/logbuf"
 )
 
 type stubOps struct {

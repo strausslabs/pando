@@ -12,8 +12,8 @@ import (
 	"github.com/docker/docker/client"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/scheduler"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/scheduler"
 )
 
 type fakeDockerCli struct {

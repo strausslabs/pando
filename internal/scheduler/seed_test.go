@@ -3,7 +3,7 @@ package scheduler
 import (
 	"testing"
 
-	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/resource"
 )
 
 func TestPhaseTerminal(t *testing.T) {

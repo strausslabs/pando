@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/client"
+	"github.com/strausslabs/pando/internal/client"
 )
 
 func shortSock(t *testing.T) string {

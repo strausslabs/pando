@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/client"
-	"github.com/guyStrauss/pando/internal/discovery"
+	"github.com/strausslabs/pando/internal/client"
+	"github.com/strausslabs/pando/internal/discovery"
 )
 
 func TestUpAutoStartsDaemon(t *testing.T) {
@@ -155,7 +155,7 @@ func (r *testRepo) writeFile(name, content string) {
 func build(t *testing.T) string {
 	t.Helper()
 	bin := filepath.Join(t.TempDir(), "pando")
-	if out, err := exec.Command("go", "build", "-o", bin, "github.com/guyStrauss/pando/cmd/pando").CombinedOutput(); err != nil {
+	if out, err := exec.Command("go", "build", "-o", bin, "github.com/strausslabs/pando/cmd/pando").CombinedOutput(); err != nil {
 		t.Fatalf("build pando: %v\n%s", err, out)
 	}
 	return bin

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/resource"
 )
 
 func loadSrc(t *testing.T, src string) (*resource.Stack, error) {

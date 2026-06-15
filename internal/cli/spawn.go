@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/client"
-	"github.com/guyStrauss/pando/internal/discovery"
+	"github.com/strausslabs/pando/internal/client"
+	"github.com/strausslabs/pando/internal/discovery"
 )
 
 func ensureClient(g *globalFlags) (*client.Client, error) {

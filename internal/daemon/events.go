@@ -7,8 +7,8 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/logbuf"
 )
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {

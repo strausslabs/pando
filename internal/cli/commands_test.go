@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/client"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/client"
 )
 
 func TestPathContains(t *testing.T) {

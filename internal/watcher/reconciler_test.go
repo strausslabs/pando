@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/worktree"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/worktree"
 )
 
 type fakeEngine struct {

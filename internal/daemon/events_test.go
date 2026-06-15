@@ -10,7 +10,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
-	"github.com/guyStrauss/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/logbuf"
 )
 
 func TestToWireEventLog(t *testing.T) {

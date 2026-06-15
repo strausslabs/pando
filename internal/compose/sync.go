@@ -11,8 +11,8 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/scheduler"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/scheduler"
 )
 
 func (b *Backend) Sync(ctx context.Context, r *resource.Resource, env scheduler.Env, localPath, containerPath string) error {

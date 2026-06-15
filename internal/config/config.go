@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/resource"
 	"go.starlark.net/starlark"
 	"go.starlark.net/syntax"
 )

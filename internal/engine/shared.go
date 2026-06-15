@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/dag"
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/scheduler"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/dag"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/scheduler"
 )
 
 // Not a git worktree: the reconciler must never track or remove this slug.

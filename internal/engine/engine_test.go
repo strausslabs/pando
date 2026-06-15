@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/executor"
-	"github.com/guyStrauss/pando/internal/logbuf"
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/scheduler"
-	"github.com/guyStrauss/pando/internal/state"
-	"github.com/guyStrauss/pando/internal/worktree"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/executor"
+	"github.com/strausslabs/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/scheduler"
+	"github.com/strausslabs/pando/internal/state"
+	"github.com/strausslabs/pando/internal/worktree"
 )
 
 func testEngine(t *testing.T) (*Engine, *logbuf.Store, *state.Store) {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/guyStrauss/pando/internal/cli"
+	"github.com/strausslabs/pando/internal/cli"
 )
 
 var version = "dev"

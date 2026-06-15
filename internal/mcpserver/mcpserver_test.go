@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/discovery"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/discovery"
 )
 
 type fakeDaemon struct {

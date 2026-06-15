@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/logbuf"
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/worktree"
+	"github.com/strausslabs/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/worktree"
 )
 
 func worktreeAt(path string) worktree.Worktree {

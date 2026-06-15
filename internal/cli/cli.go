@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/guyStrauss/pando/internal/client"
-	"github.com/guyStrauss/pando/internal/discovery"
 	"github.com/spf13/cobra"
+	"github.com/strausslabs/pando/internal/client"
+	"github.com/strausslabs/pando/internal/discovery"
 )
 
 const updateAvailableMsg = "a newer pando is available: %s → %s · brew upgrade pando\n"

@@ -57,7 +57,11 @@ pando setup   # optional: install the pando.star skill + register the MCP server
 ```
 
 Or grab a static binary from [releases](https://github.com/strausslabs/pando/releases)
-(darwin/arm64, linux/amd64, linux/arm64).
+(darwin/arm64, linux/amd64, linux/arm64), or build from source with Go:
+
+```sh
+go install github.com/strausslabs/pando/cmd/pando@latest
+```
 
 `pando setup` is for agent users: it drops the `pando.star` authoring skill into
 `~/.claude/skills/` and runs `claude mcp add pando -- pando mcp`. Skip it if you

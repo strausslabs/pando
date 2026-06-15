@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/interp"
-	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/interp"
+	"github.com/strausslabs/pando/internal/resource"
 )
 
 func fastProbe(kind resource.ProbeKind, target string) resource.Probe {

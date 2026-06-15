@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/guyStrauss/pando/internal/dag"
-	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/dag"
+	"github.com/strausslabs/pando/internal/resource"
 )
 
 type fakeExec struct {
