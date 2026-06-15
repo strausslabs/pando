@@ -154,6 +154,9 @@ targets become `local`. Order them with `deps`.
 5. **Shared infra?** `shared = True` — brought up once for the whole repo. A
    shared resource may depend **only** on other shared resources.
 6. **Fast container iteration?** `liveUpdate = [sync(...), run(...), restart()]`.
+7. **Rerun a task on source change?** `runWhen = "onChange"`, `onChange = [globs]`,
+   `ignore = [globs]` for the noise (tests, generated files). Good for build /
+   codegen / lint tasks that should fire on save but skip a no-op.
 
 ## Helper signatures
 
@@ -162,7 +165,8 @@ cmd(cmd, cwd?, env?, watch?)          # host process; watch=[paths] restarts it
 task(cmd, cwd?, env?)                 # one-shot; defaults runWhen="once"
 compose(image?, ports?, env?, envFile?, dependsOn?, volumes?, command?,
         memory?, cpus?, pidsLimit?, restart?, healthcheck?)
-build(context, dockerfile?, args?, target?, secrets?)
+build(context, dockerfile?, args?, target?, secrets?)   # dockerfile is relative
+                                                         # to context (default "Dockerfile")
 healthcheck(test, interval?, timeout?, retries?)
 
 http_get(target, timeout?, interval?)
@@ -178,11 +182,14 @@ duration("30s")  bytes("256m")        # explicit coercion; strings also work inl
 ```
 
 `service(local=|task=|compose=, build?, deps?, ready?, runWhen?, onChange?,
-every?, shared?, liveUpdate?, hooks?)`
+ignore?, every?, shared?, liveUpdate?, hooks?)`
 
 - `runWhen`: `"once"` | `"always"` | `"onChange"` | `"manual"`. `local`/`compose`
-  default `always`; `task` defaults `once`. `onChange=[paths]` is required when
-  `runWhen="onChange"`. `every="30s"` runs periodically.
+  default `always`; `task` defaults `once`. `every="30s"` runs periodically.
+- `onChange=[globs]` (required when `runWhen="onChange"`): Pando watches those
+  globs and reruns the task when a matched file *actually changes* (content-hashed
+  + debounced — no manual `pando up`). `ignore=[globs]` carves out noise
+  (e.g. `["**/*_test.go"]`). `.git`, `node_modules`, `.pando` are always ignored.
 - Durations: `"500ms"`, `"30s"`, `"5m"`, `"1h"`. Sizes: `"256m"`, `"1g"`.
 
 ---
@@ -205,7 +212,7 @@ pando logs <name> -w <worktree> --grep 'error|panic|refused'
 | Resource stuck **not ready** / dependents never start | `ready` probe never passes | `pando logs <name>`; verify the probe target/port; the process may bind a different port than `$PORT_<name>`. |
 | `bind: address already in use` | a host port is hardcoded instead of `$PORT_*`, or a stale process holds it | Use `$PORT_<name>` everywhere; `pando down` to clear, then `pando up`. |
 | Probe passes but app actually broken | probing the wrong thing (e.g. TCP open but app 500s) | Use `http_get` on a real `/health` route, not `tcp`. |
-| Task reruns every time | `task` without `runWhen` defaults sensibly, but a `local` won't stop | One-shots → `task(...)` + `runWhen="once"`; force a rerun with `pando up --force`. |
+| Task reruns every time | wrong `runWhen` for the intent | One-shot → `runWhen="once"`; rebuild-on-edit → `runWhen="onChange"` + `onChange=[globs]` (reruns only when inputs change); force a rerun with `pando up --force`. |
 | Shared resource rejected at validation | it depends on a non-shared resource | Shared may depend only on shared. Make the dep shared too, or drop it. |
 | Edit to `pando.star` did nothing | daemon didn't reload, or the diff was a no-op | Pando hot-reloads on save; if not, `pando down && pando up`. |
 | `not inside a git repository` | running outside a worktree | `cd` into the repo; Pando keys everything off the git dir. |

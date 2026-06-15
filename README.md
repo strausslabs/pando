@@ -33,6 +33,12 @@ resources (a database, say) that come up once and are reused across branches.
 
 - **Dependency graph, not a script.** Declare `deps`; Pando topologically orders
   startup, waits on readiness probes, and tears down in reverse.
+- **Builds, not just images.** Point a resource at a `build(...)` — a Dockerfile
+  `context`, `target`, `args`, build `secrets` — and Pando builds the image
+  before bringing the service up.
+- **Rerun on change.** `runWhen = "onChange"` reruns a task only when its watched
+  globs actually change (content-hashed, debounced); `ignore` carves out the
+  noise. Edit a `.go` file → rebuild fires; edit a test → it doesn't.
 - **Live config.** Edit `pando.star`, save — the daemon diffs the stack and
   restarts only what changed.
 - **Live update.** `sync` files into a running container and `run` a rebuild
@@ -80,11 +86,34 @@ define_stack(
     services = {
         "db": service(compose = compose(image = "postgres:16", ports = ["$PORT_db:5432"])),
         "migrate": service(task = task(cmd = "./migrate"), deps = ["db"], runWhen = "once"),
+
+        # Build the image from a Dockerfile, then run it. Live-update the source
+        # into the container on change instead of rebuilding from scratch.
         "api": service(
-            local = cmd("go run ./cmd/api"),
+            build = build(
+                context = "./api",            # build context
+                dockerfile = "Dockerfile.dev", # relative to context (default: Dockerfile)
+                target = "dev",                # multi-stage target
+                args = {"VERSION": "dev"},
+            ),
+            compose = compose(ports = ["$PORT_api:8000"], dependsOn = ["db"]),
             deps = ["migrate"],
             ready = http_get("http://localhost:$PORT_api/health", timeout = "30s"),
-            liveUpdate = [sync("./api", "/app"), run("go build"), restart()],
+            liveUpdate = [sync("./api/src", "/app/src"), run("pip install -r requirements.txt"), restart()],
+        ),
+
+        # A host process that restarts whenever its sources change.
+        "worker": service(
+            local = cmd("go run ./cmd/worker", watch = ["**/*.go"]),
+            liveUpdate = [restart()],
+        ),
+
+        # Rerun a task only when matching files actually change — ignore the noise.
+        "build": service(
+            task = task(cmd = "go build ./..."),
+            runWhen = "onChange",
+            onChange = ["**/*.go", "go.mod", "go.sum"],
+            ignore = ["**/*_test.go"],
         ),
     },
 )
@@ -112,9 +141,9 @@ multiple repos can run Pando at once.
 ## CLI
 
 `pando up` (auto-starts the daemon) · `pando start` (foreground daemon) ·
-`pando status` · `pando logs <resource>` · `pando exec <resource> -- <cmd>` ·
-`pando restart <resource>` · `pando down` · `pando worktrees`. Add `--json` for
-machine-readable output.
+`pando stop` (stop the repo's daemon) · `pando status` · `pando logs <resource>` ·
+`pando exec <resource> -- <cmd>` · `pando restart <resource>` · `pando down` ·
+`pando worktrees`. Add `--json` for machine-readable output.
 
 ## Development
 
