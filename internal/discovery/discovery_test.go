@@ -128,7 +128,23 @@ func TestLogPathPerRepoUnderRuntimeDir(t *testing.T) {
 	}
 }
 
+// cleanGitEnv unsets the per-process git variables a parent git command (e.g. a
+// pre-commit hook) exports, so a cwd-based discovery test isn't fooled into
+// resolving the outer repo regardless of where it cd's.
+func cleanGitEnv(t *testing.T) {
+	t.Helper()
+	for _, k := range []string{"GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX"} {
+		if v, ok := os.LookupEnv(k); ok {
+			if err := os.Unsetenv(k); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.Setenv(k, v) })
+		}
+	}
+}
+
 func TestGitCommonDirInRepoAndOutside(t *testing.T) {
+	cleanGitEnv(t)
 	repo := t.TempDir()
 	gitCmd(t, repo, "init")
 	t.Chdir(repo)
@@ -149,6 +165,7 @@ func TestGitCommonDirInRepoAndOutside(t *testing.T) {
 }
 
 func TestResolveOutsideRepoNotFound(t *testing.T) {
+	cleanGitEnv(t)
 	t.Chdir(t.TempDir())
 	_, found, running := Resolve(context.Background())
 	if found || running {
