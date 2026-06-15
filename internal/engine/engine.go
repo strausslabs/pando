@@ -170,6 +170,7 @@ func (e *Engine) newScheduler(slug string, g *dag.Graph, env scheduler.Env, as *
 		Env:       env,
 		OnState:   e.stateHandler(slug, as),
 		WaitReady: e.waitReady,
+		InputHash: func(r *resource.Resource) string { return e.inputHash(as.info.Path, r) },
 	}
 	if slug != sharedSlug {
 		opts.ExternalReady = e.sharedReady

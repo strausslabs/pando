@@ -1,0 +1,139 @@
+package engine
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/guyStrauss/pando/internal/logbuf"
+	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/guyStrauss/pando/internal/worktree"
+)
+
+func worktreeAt(path string) worktree.Worktree {
+	return worktree.Worktree{Path: path, Branch: "main", Slug: "main"}
+}
+
+func waitForCount(logs *logbuf.Store, wt, res, substr string, want int) bool {
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if countLines(logs, wt, res, substr) >= want {
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return false
+}
+
+func TestSplitGlobBase(t *testing.T) {
+	cases := []struct{ pattern, base, glob string }{
+		{"migrations", "migrations", ""},
+		{"src/**/*.go", "src", "**/*.go"},
+		{"*.go", "", "*.go"},
+		{"a/b/c.txt", "a/b/c.txt", ""},
+	}
+	for _, c := range cases {
+		base, glob := splitGlobBase(c.pattern)
+		if base != c.base || glob != c.glob {
+			t.Errorf("splitGlobBase(%q) = (%q, %q), want (%q, %q)", c.pattern, base, glob, c.base, c.glob)
+		}
+	}
+}
+
+func TestInputHashChangesWithFileContent(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "migrations"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(root, "migrations", name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("001.sql", "create table a;")
+
+	r := &resource.Resource{
+		Name: "migrate", Kind: resource.KindTask,
+		Task:     &resource.TaskSpec{Cmd: "true"},
+		RunWhen:  resource.RunOnChange,
+		OnChange: []string{"migrations/*.sql"},
+	}
+
+	h1 := eng.inputHash(root, r)
+	if h1 == "" {
+		t.Fatal("inputHash should be non-empty when matching files exist")
+	}
+	if eng.inputHash(root, r) != h1 {
+		t.Error("inputHash should be stable for unchanged inputs")
+	}
+
+	write("002.sql", "create table b;")
+	if eng.inputHash(root, r) == h1 {
+		t.Error("inputHash should change when a new matching file is added")
+	}
+}
+
+func TestInputHashEmptyWhenNoMatch(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	r := &resource.Resource{
+		Name: "migrate", Kind: resource.KindTask,
+		RunWhen:  resource.RunOnChange,
+		OnChange: []string{"does-not-exist/*.sql"},
+	}
+	if got := eng.inputHash(t.TempDir(), r); got != "" {
+		t.Errorf("inputHash with no matches should be empty, got %q", got)
+	}
+}
+
+func TestInputHashNoOnChange(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	r := &resource.Resource{Name: "x", Kind: resource.KindTask}
+	if got := eng.inputHash(t.TempDir(), r); got != "" {
+		t.Errorf("inputHash without OnChange should be empty, got %q", got)
+	}
+}
+
+func TestEngineSkipsOnChangeUntilInputChanges(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	root := t.TempDir()
+	seed := filepath.Join(root, "seed.txt")
+	if err := os.WriteFile(seed, []byte("v1"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{{
+		Name: "seeder", Kind: resource.KindTask,
+		Task:     &resource.TaskSpec{Cmd: "echo seeded"},
+		RunWhen:  resource.RunOnChange,
+		OnChange: []string{"seed.txt"},
+	}}}
+	wtree := worktreeAt(root)
+	if err := eng.Register(wtree, stack); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	ctx := t.Context()
+
+	if err := eng.Up(ctx, wtree.Slug, false); err != nil {
+		t.Fatalf("up 1: %v", err)
+	}
+	waitForLine(logs, wtree.Slug, "seeder", "seeded")
+	first := countLines(logs, wtree.Slug, "seeder", "seeded")
+
+	if err := eng.Up(ctx, wtree.Slug, false); err != nil {
+		t.Fatalf("up 2: %v", err)
+	}
+	if got := countLines(logs, wtree.Slug, "seeder", "seeded"); got != first {
+		t.Errorf("unchanged input should skip the rerun: %d -> %d", first, got)
+	}
+
+	if err := os.WriteFile(seed, []byte("v2-changed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := eng.Up(ctx, wtree.Slug, false); err != nil {
+		t.Fatalf("up 3: %v", err)
+	}
+	if !waitForCount(logs, wtree.Slug, "seeder", "seeded", first+1) {
+		t.Errorf("changed input should re-run the task: still %d", countLines(logs, wtree.Slug, "seeder", "seeded"))
+	}
+}

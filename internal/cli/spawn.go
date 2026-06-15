@@ -55,23 +55,26 @@ func spawnDaemon(g *globalFlags, gitDir string) (string, error) {
 	_ = cmd.Process.Release()
 
 	socket := discovery.SocketPath(gitDir)
-	if err := waitForSocket(socket, 10*time.Second); err != nil {
+	if err := waitForSocket(ctx(), socket, true, 10*time.Second); err != nil {
 		return "", fmt.Errorf("daemon did not come up (see %s): %w", discovery.LogPath(gitDir), err)
 	}
 	return socket, nil
 }
 
-func waitForSocket(socket string, timeout time.Duration) error {
+func waitForSocket(ctx context.Context, socket string, want bool, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	cl := client.New(socket)
 	for time.Now().Before(deadline) {
-		c, cancel := context.WithTimeout(ctx(), 200*time.Millisecond)
+		c, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 		err := cl.Health(c)
 		cancel()
-		if err == nil {
+		if (err == nil) == want {
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return fmt.Errorf("timed out after %s", timeout)
+	if want {
+		return fmt.Errorf("daemon did not come up within %s", timeout)
+	}
+	return fmt.Errorf("daemon did not stop within %s", timeout)
 }

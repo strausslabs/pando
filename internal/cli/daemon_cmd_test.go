@@ -46,11 +46,10 @@ func TestStopDaemonNoDaemon(t *testing.T) {
 	}
 }
 
-func TestWaitForSocketGoneTimesOut(t *testing.T) {
+func TestWaitForSocketTimesOutWhenGoneNeverHappens(t *testing.T) {
 	sock := liveDaemon(t, &stubOps{})
-	err := waitForSocketGone(context.Background(), sock, 300*time.Millisecond)
-	if err == nil {
-		t.Fatal("waitForSocketGone should time out while the daemon stays reachable")
+	if err := waitForSocket(context.Background(), sock, false, 300*time.Millisecond); err == nil {
+		t.Fatal("waitForSocket(want=false) should time out while the daemon stays reachable")
 	}
 }
 
