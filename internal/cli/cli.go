@@ -13,6 +13,8 @@ import (
 
 const updateAvailableMsg = "a newer pando is available: %s → %s · brew upgrade pando\n"
 
+const defaultConfig = "pando.star"
+
 type globalFlags struct {
 	socket string
 	config string
@@ -29,7 +31,7 @@ func Execute(version string) error {
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&g.socket, "socket", "", "daemon socket path (default: per-repo, auto-discovered)")
-	root.PersistentFlags().StringVarP(&g.config, "config", "f", "pando.star", "path to config file")
+	root.PersistentFlags().StringVarP(&g.config, "config", "f", defaultConfig, "path to config file")
 	root.PersistentFlags().BoolVar(&g.json, "json", false, "emit machine-readable JSON (for scripts and agents)")
 	_ = root.PersistentFlags().MarkHidden("socket")
 
@@ -47,12 +49,22 @@ func Execute(version string) error {
 		restartCmd(g),
 		worktreesCmd(g),
 	)
-	return root.Execute()
+	err := root.Execute()
+	if err != nil && g.json {
+		_ = printJSON(map[string]string{"error": err.Error()})
+		return Handled{err}
+	}
+	return err
 }
+
+type Handled struct{ error }
 
 func ctx() context.Context { return context.Background() }
 
 func newClient(g *globalFlags) (*client.Client, error) {
+	if g.config != "" && g.config != defaultConfig {
+		fmt.Fprintf(os.Stderr, "warning: --config %q ignored; the running daemon uses its own config (restart it to change)\n", g.config)
+	}
 	if g.socket != "" {
 		return client.New(g.socket), nil
 	}

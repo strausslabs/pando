@@ -166,6 +166,55 @@ func TestReconcileIdempotent(t *testing.T) {
 	}
 }
 
+func TestAutoUpBringsDiscoveredWorktreesUp(t *testing.T) {
+	eng := newFakeEngine()
+	lister := &fakeLister{}
+	lister.set([]worktree.Worktree{wtree("main")})
+
+	var mu sync.Mutex
+	var upped []string
+	r, err := NewReconciler(eng, &fakeLoader{}, lister, "", Options{
+		AutoUp: true,
+		OnUp: func(_ context.Context, slug string) {
+			mu.Lock()
+			defer mu.Unlock()
+			upped = append(upped, slug)
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r.reconcileWorktrees(context.Background())
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(upped) != 1 || upped[0] != "main" {
+		t.Errorf("AutoUp should bring each discovered worktree up, got %v", upped)
+	}
+}
+
+func TestNoAutoUpWhenDisabled(t *testing.T) {
+	eng := newFakeEngine()
+	lister := &fakeLister{}
+	lister.set([]worktree.Worktree{wtree("main")})
+
+	called := false
+	r, err := NewReconciler(eng, &fakeLoader{}, lister, "", Options{
+		AutoUp: false,
+		OnUp:   func(context.Context, string) { called = true },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r.reconcileWorktrees(context.Background())
+
+	if called {
+		t.Error("OnUp must not fire when AutoUp is disabled")
+	}
+}
+
 func TestReloadConfigCallsEngineReload(t *testing.T) {
 	eng := newFakeEngine()
 	lister := &fakeLister{}

@@ -481,6 +481,15 @@ func (e *Engine) Logs(ctx context.Context, q api.LogQuery) ([]api.LogLine, error
 	if e.cfg.Logs == nil {
 		return nil, nil
 	}
+	if q.Resource != "" && q.Resource != configResource {
+		as, err := e.lookup(q.Worktree)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := as.stack.Get(q.Resource); !ok {
+			return nil, fmt.Errorf("resource %q not found in worktree %q", q.Resource, q.Worktree)
+		}
+	}
 	lines, err := e.cfg.Logs.Query(q.Worktree, q.Resource, logbuf.Query{
 		Tail:  q.Tail,
 		Since: q.Since,

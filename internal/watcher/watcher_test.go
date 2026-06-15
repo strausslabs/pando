@@ -131,3 +131,58 @@ func TestMatchPrefersExactThenDir(t *testing.T) {
 		t.Errorf("non-exact path should fall back to dir key: %q %v", key, ok)
 	}
 }
+
+func TestRunWaitsForInFlightFire(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "x.txt")
+	if err := os.WriteFile(file, []byte("v1"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var fireReturned atomic.Bool
+	w, err := New(30*time.Millisecond, func(string, []string) {
+		close(started)
+		<-release
+		fireReturned.Store(true)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Add(dir, "k"); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	runDone := make(chan struct{})
+	go func() { _ = w.Run(ctx); close(runDone) }()
+
+	time.Sleep(30 * time.Millisecond)
+	if err := os.WriteFile(file, []byte("v2"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("onFire never started")
+	}
+
+	cancel()
+	select {
+	case <-runDone:
+		t.Fatal("Run returned before the in-flight fire finished")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	close(release)
+	select {
+	case <-runDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run did not return after the fire completed")
+	}
+	if !fireReturned.Load() {
+		t.Error("Run should only return after onFire returns")
+	}
+}

@@ -17,11 +17,13 @@ type Watcher struct {
 	fsw      *fsnotify.Watcher
 	debounce time.Duration
 
-	mu      sync.Mutex
-	keyOf   map[string]string
-	timers  map[string]*time.Timer
-	changed map[string]map[string]bool
-	onFire  func(key string, paths []string)
+	mu       sync.Mutex
+	keyOf    map[string]string
+	timers   map[string]*time.Timer
+	changed  map[string]map[string]bool
+	closing  bool
+	inFlight sync.WaitGroup
+	onFire   func(key string, paths []string)
 }
 
 func New(debounce time.Duration, onFire func(key string, paths []string)) (*Watcher, error) {
@@ -67,6 +69,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			w.cancelTimers()
+			w.inFlight.Wait()
 			return nil
 		case ev, ok := <-w.fsw.Events:
 			if !ok {
@@ -113,13 +116,19 @@ func (w *Watcher) schedule(key, path string) {
 	}
 	w.timers[key] = time.AfterFunc(w.debounce, func() {
 		w.mu.Lock()
+		if w.closing {
+			w.mu.Unlock()
+			return
+		}
 		delete(w.timers, key)
 		paths := make([]string, 0, len(w.changed[key]))
 		for p := range w.changed[key] {
 			paths = append(paths, p)
 		}
 		delete(w.changed, key)
+		w.inFlight.Add(1)
 		w.mu.Unlock()
+		defer w.inFlight.Done()
 		w.onFire(key, paths)
 	})
 }
@@ -127,6 +136,7 @@ func (w *Watcher) schedule(key, path string) {
 func (w *Watcher) cancelTimers() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.closing = true
 	for _, t := range w.timers {
 		t.Stop()
 	}

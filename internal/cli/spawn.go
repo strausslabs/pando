@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 
@@ -45,7 +46,7 @@ func spawnDaemon(g *globalFlags, gitDir string) (string, error) {
 	}
 	defer func() { _ = logFile.Close() }()
 
-	cmd := exec.Command(self, "daemon", "--config", g.config)
+	cmd := exec.Command(self, "daemon", "--config", g.config, "--auto-up")
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
@@ -56,9 +57,27 @@ func spawnDaemon(g *globalFlags, gitDir string) (string, error) {
 
 	socket := discovery.SocketPath(gitDir)
 	if err := waitForSocket(ctx(), socket, true, 10*time.Second); err != nil {
-		return "", fmt.Errorf("daemon did not come up (see %s): %w", discovery.LogPath(gitDir), err)
+		logPath := discovery.LogPath(gitDir)
+		if last := lastLogLine(logPath); last != "" {
+			return "", fmt.Errorf("daemon did not come up: %s (see %s)", last, logPath)
+		}
+		return "", fmt.Errorf("daemon did not come up (see %s): %w", logPath, err)
 	}
 	return socket, nil
+}
+
+func lastLogLine(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if l := strings.TrimSpace(lines[i]); l != "" {
+			return l
+		}
+	}
+	return ""
 }
 
 func waitForSocket(ctx context.Context, socket string, want bool, timeout time.Duration) error {

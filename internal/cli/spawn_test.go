@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,6 +51,38 @@ func TestUpAutoStartsDaemon(t *testing.T) {
 	}
 	if _, ok := discovery.Load(gitDir); ok {
 		t.Error("discovery info not removed after stop")
+	}
+}
+
+func TestUpInFreshWorktreeResolvesAndBringsUp(t *testing.T) {
+	if testing.Short() {
+		t.Skip("compiles pando and spawns a daemon")
+	}
+	repo := newTestRepo(t)
+
+	if out, err := repo.run("up"); err != nil {
+		t.Fatalf("up in main worktree: %v\n%s", err, out)
+	}
+
+	wtDir := filepath.Join(filepath.Dir(repo.dir), "wt-feat")
+	t.Cleanup(func() { _ = os.RemoveAll(wtDir) })
+	repo.git("worktree", "add", "-q", "-b", "feat", wtDir)
+
+	feat := &testRepo{t: t, bin: repo.bin, dir: wtDir, env: repo.env}
+	out, err := feat.run("up")
+	if err != nil {
+		t.Fatalf("first up in a freshly-added worktree must succeed, not race the reconciler: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "feat is up") {
+		t.Errorf("up in the new worktree should confirm it came up:\n%s", out)
+	}
+
+	st, err := feat.run("status")
+	if err != nil {
+		t.Fatalf("status: %v\n%s", err, st)
+	}
+	if !strings.Contains(st, "feat") {
+		t.Errorf("status should list the new worktree:\n%s", st)
 	}
 }
 
@@ -132,4 +165,22 @@ func reachable(socket string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	return client.New(socket).Health(ctx)
+}
+
+func TestLastLogLine(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "daemon.log")
+
+	if got := lastLogLine(filepath.Join(dir, "missing.log")); got != "" {
+		t.Errorf("missing file should yield empty, got %q", got)
+	}
+
+	content := "pando ready\nerror: service \"x\": unknown field \"ignore\"\n\n\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got := lastLogLine(path)
+	if got != `error: service "x": unknown field "ignore"` {
+		t.Errorf("lastLogLine should return the last non-blank line, got %q", got)
+	}
 }
