@@ -21,6 +21,18 @@ jobs:
           go-version: "1.26"
           cache: true
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Build the real UI so web_test.go exercises the SPA-serving paths and the
+      # e2e daemon serves actual assets, not just the go:embed placeholder.
+      - name: Build UI
+        working-directory: ui
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
       - name: Verify formatting
         run: |
           unformatted=$(gofmt -l .)
