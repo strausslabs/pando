@@ -1,9 +1,11 @@
 package discovery
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -108,5 +110,57 @@ func TestResolveDetectsLiveAndDeadSocket(t *testing.T) {
 	defer func() { _ = os.Remove(dead) }()
 	if alive(dead) {
 		t.Error("a plain file is not a live daemon")
+	}
+}
+
+func TestLogPathPerRepoUnderRuntimeDir(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	a := LogPath("/repo/a/.git")
+	b := LogPath("/repo/b/.git")
+	if a == b {
+		t.Error("log paths must differ per repo")
+	}
+	if filepath.Ext(a) != ".log" {
+		t.Errorf("log path should end in .log: %s", a)
+	}
+	if filepath.Dir(a) != runtimeDir() {
+		t.Errorf("log path not under runtime dir: %s", a)
+	}
+}
+
+func TestGitCommonDirInRepoAndOutside(t *testing.T) {
+	repo := t.TempDir()
+	gitCmd(t, repo, "init")
+	t.Chdir(repo)
+	gcd := GitCommonDir(context.Background())
+	if gcd == "" {
+		t.Fatal("inside a repo GitCommonDir must be non-empty")
+	}
+	resolved, _ := filepath.EvalSymlinks(filepath.Join(repo, ".git"))
+	if gcd != resolved {
+		t.Errorf("GitCommonDir = %q, want %q", gcd, resolved)
+	}
+
+	outside := t.TempDir()
+	t.Chdir(outside)
+	if got := GitCommonDir(context.Background()); got != "" {
+		t.Errorf("outside a repo GitCommonDir should be empty, got %q", got)
+	}
+}
+
+func TestResolveOutsideRepoNotFound(t *testing.T) {
+	t.Chdir(t.TempDir())
+	_, found, running := Resolve(context.Background())
+	if found || running {
+		t.Errorf("outside a repo: found=%v running=%v, want both false", found, running)
+	}
+}
+
+func gitCmd(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	c := exec.Command("git", args...)
+	c.Dir = dir
+	if out, err := c.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 }

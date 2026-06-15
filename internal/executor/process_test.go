@@ -226,3 +226,67 @@ func TestSampleAfterStopReturnsFalse(t *testing.T) {
 		t.Error("sampling after Stop should return ok=false")
 	}
 }
+
+func TestExecRunsHostCommand(t *testing.T) {
+	e, _ := newTestEngine()
+	res, err := e.Exec(context.Background(), "main", "api",
+		[]string{"sh", "-c", "echo out; echo err 1>&2"}, scheduler.Env{Worktree: "main"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.Stdout, "out") {
+		t.Errorf("stdout = %q", res.Stdout)
+	}
+	if !strings.Contains(res.Stderr, "err") {
+		t.Errorf("stderr = %q", res.Stderr)
+	}
+	if res.ExitCode != 0 {
+		t.Errorf("exit code = %d", res.ExitCode)
+	}
+}
+
+func TestExecPropagatesEnv(t *testing.T) {
+	e, _ := newTestEngine()
+	res, err := e.Exec(context.Background(), "main", "api",
+		[]string{"sh", "-c", "echo $FOO"}, scheduler.Env{Worktree: "main", Vars: map[string]string{"FOO": "barval"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(res.Stdout, "barval") {
+		t.Errorf("env not propagated: %q", res.Stdout)
+	}
+}
+
+func TestExecNonZeroExit(t *testing.T) {
+	e, _ := newTestEngine()
+	res, err := e.Exec(context.Background(), "main", "api",
+		[]string{"sh", "-c", "exit 3"}, scheduler.Env{Worktree: "main"})
+	if err != nil {
+		t.Fatalf("non-zero exit should not be a hard error: %v", err)
+	}
+	if res.ExitCode != 3 {
+		t.Errorf("exit code = %d, want 3", res.ExitCode)
+	}
+}
+
+func TestExecEmptyCmd(t *testing.T) {
+	e, _ := newTestEngine()
+	if _, err := e.Exec(context.Background(), "main", "api", nil, scheduler.Env{}); err == nil {
+		t.Error("empty command should error")
+	}
+}
+
+func TestExecBadBinary(t *testing.T) {
+	e, _ := newTestEngine()
+	if _, err := e.Exec(context.Background(), "main", "api",
+		[]string{"this-binary-does-not-exist-pando"}, scheduler.Env{}); err == nil {
+		t.Error("nonexistent binary should error")
+	}
+}
+
+func TestSyncIsNoop(t *testing.T) {
+	e, _ := newTestEngine()
+	if err := e.Sync(context.Background(), taskRes("a", "true"), scheduler.Env{}, "x", "y"); err != nil {
+		t.Errorf("Sync stub should return nil, got %v", err)
+	}
+}
