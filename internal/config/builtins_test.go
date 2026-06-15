@@ -176,6 +176,34 @@ define_stack(
 	}
 }
 
+func TestLocalRunStepParses(t *testing.T) {
+	st := mustLoadSrc(t, `
+define_stack(
+    name = "lu",
+    services = {
+        "api": service(
+            compose = compose(image = "alpine"),
+            liveUpdate = [
+                local_run("mvn package", trigger = ["./src"]),
+                sync("./target/app.jar", "/app/app.jar"),
+                restart_container(),
+            ],
+        ),
+    },
+)
+`)
+	steps := st.Resources[0].LiveUpdate
+	if len(steps) != 3 {
+		t.Fatalf("want 3 live-update steps, got %d", len(steps))
+	}
+	if steps[0].LocalRun != "mvn package" {
+		t.Errorf("local_run cmd not parsed: %+v", steps[0])
+	}
+	if len(steps[0].Trigger) != 1 || steps[0].Trigger[0] != "./src" {
+		t.Errorf("local_run trigger not parsed: %+v", steps[0].Trigger)
+	}
+}
+
 func TestRunTriggerWrongTypeErrors(t *testing.T) {
 	_, err := loadSrc(t, `
 define_stack(

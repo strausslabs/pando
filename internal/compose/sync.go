@@ -31,7 +31,11 @@ func (b *Backend) Sync(ctx context.Context, r *resource.Resource, env scheduler.
 		return err
 	}
 	dst := filepath.Dir(containerPath)
-	return b.cli.CopyToContainer(ctx, containerName(env.Project, r.Name), dst, buf, container.CopyToContainerOptions{})
+	name := containerName(env.Project, r.Name)
+	if _, err := b.Exec(ctx, env.Worktree, r.Name, []string{"mkdir", "-p", dst}, env); err != nil {
+		return fmt.Errorf("sync: create %s in container: %w", dst, err)
+	}
+	return b.cli.CopyToContainer(ctx, name, dst, buf, container.CopyToContainerOptions{})
 }
 
 func tarPath(tw *tar.Writer, localPath, name string, info os.FileInfo) error {

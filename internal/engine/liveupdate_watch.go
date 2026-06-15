@@ -15,6 +15,7 @@ import (
 type liveWatcher struct {
 	w      *watcher.Watcher
 	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 func liveUpdatePaths(r *resource.Resource, root string) []string {
@@ -31,6 +32,11 @@ func liveUpdatePaths(r *resource.Resource, root string) []string {
 	for _, step := range r.LiveUpdate {
 		if step.Sync != nil {
 			add(step.Sync.Local)
+		}
+		if step.LocalRun != "" {
+			for _, t := range step.Trigger {
+				add(t)
+			}
 		}
 	}
 	if r.Local != nil {
@@ -122,7 +128,8 @@ func (e *Engine) startWatchers(as *activeStack) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	lw.cancel = cancel
-	go func() { _ = w.Run(ctx) }()
+	lw.done = make(chan struct{})
+	go func() { defer close(lw.done); _ = w.Run(ctx) }()
 
 	as.mu.Lock()
 	as.live = lw
@@ -134,8 +141,12 @@ func (as *activeStack) stopWatchers() {
 	lw := as.live
 	as.live = nil
 	as.mu.Unlock()
-	if lw != nil && lw.cancel != nil {
-		lw.cancel()
+	if lw == nil || lw.cancel == nil {
+		return
+	}
+	lw.cancel()
+	if lw.done != nil {
+		<-lw.done
 	}
 }
 

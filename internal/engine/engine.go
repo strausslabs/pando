@@ -65,6 +65,7 @@ type activeStack struct {
 	nextRun        map[string]time.Time
 	periodicCancel context.CancelFunc
 	live           *liveWatcher
+	liveRunning    map[string]*sync.Mutex
 }
 
 func New(cfg Config) *Engine {

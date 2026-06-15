@@ -184,6 +184,41 @@ func TestRestartContainerPreservesSyncedFileReal(t *testing.T) {
 	}
 }
 
+func TestSyncCreatesParentDirReal(t *testing.T) {
+	ensureDocker(t)
+
+	logs := logbuf.NewStore(1000)
+	b, err := New(logs, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := scheduler.Env{Worktree: "itest", Project: "pando-syncdir-itest", Ports: map[string]int{}, Vars: map[string]string{}}
+	r := &resource.Resource{
+		Name: "app", Kind: resource.KindCompose,
+		Compose: &resource.ComposeSpec{Image: "ghcr.io/linuxcontainers/alpine:3.20", Command: []string{"sleep", "3600"}},
+	}
+	ctx := context.Background()
+
+	if err := b.Start(ctx, r, env, nopReporter{}); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer func() { _ = b.Stop(ctx, r, env) }()
+
+	host := t.TempDir()
+	mustWrite(t, filepath.Join(host, "app.jar"), "artifact")
+	// /app does not exist in a bare alpine image; sync must create it.
+	if err := b.Sync(ctx, r, env, filepath.Join(host, "app.jar"), "/app/app.jar"); err != nil {
+		t.Fatalf("sync into a missing dir should create it, got: %v", err)
+	}
+	got, err := b.Exec(ctx, "itest", "app", []string{"cat", "/app/app.jar"}, env)
+	if err != nil {
+		t.Fatalf("exec: %v", err)
+	}
+	if !strings.Contains(got.Stdout, "artifact") {
+		t.Errorf("synced artifact not found at /app/app.jar: %q", got.Stdout)
+	}
+}
+
 func mustWrite(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {

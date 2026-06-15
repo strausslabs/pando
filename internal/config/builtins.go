@@ -34,6 +34,7 @@ func builtins(h *holder) starlark.StringDict {
 		"exit0":             probeBuiltin("exit0"),
 		"sync":              starlark.NewBuiltin("sync", buildSync),
 		"run":               starlark.NewBuiltin("run", buildRun),
+		"local_run":         starlark.NewBuiltin("local_run", buildLocalRun),
 		"restart_container": starlark.NewBuiltin("restart_container", buildRestartContainer),
 		"duration":          starlark.NewBuiltin("duration", durationBuiltin),
 		"bytes":             starlark.NewBuiltin("bytes", bytesBuiltin),
@@ -94,17 +95,25 @@ func buildSync(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwa
 }
 
 func buildRun(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	return buildTriggeredStep(b, args, kwargs, "run")
+}
+
+func buildLocalRun(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	return buildTriggeredStep(b, args, kwargs, "localRun")
+}
+
+func buildTriggeredStep(b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple, key string) (starlark.Value, error) {
 	var cmd string
 	var trigger starlark.Value
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "cmd", &cmd, "trigger?", &trigger); err != nil {
 		return nil, err
 	}
 	step := starlark.NewDict(2)
-	_ = step.SetKey(starlark.String("run"), starlark.String(cmd))
+	_ = step.SetKey(starlark.String(key), starlark.String(cmd))
 	if trigger != nil {
 		list, err := asStringList(trigger)
 		if err != nil {
-			return nil, fmt.Errorf("run: trigger: %w", err)
+			return nil, fmt.Errorf("%s: trigger: %w", b.Name(), err)
 		}
 		_ = step.SetKey(starlark.String("trigger"), list)
 	}

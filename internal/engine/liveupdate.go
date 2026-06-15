@@ -3,15 +3,23 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
+	"github.com/guyStrauss/pando/internal/interp"
 	"github.com/guyStrauss/pando/internal/logbuf"
 	"github.com/guyStrauss/pando/internal/resource"
 	"github.com/guyStrauss/pando/internal/scheduler"
 )
 
 func (e *Engine) runLiveUpdate(ctx context.Context, as *activeStack, r *resource.Resource, changed []string) error {
+	lock := as.liveLock(r.Name)
+	lock.Lock()
+	defer lock.Unlock()
+
 	if e.cfg.Logs != nil {
 		e.cfg.Logs.PublishPhase(as.env.Worktree, r.Name, string(scheduler.PhaseLiveUpdating))
 	}
@@ -30,6 +38,14 @@ func (e *Engine) runLiveUpdate(ctx context.Context, as *activeStack, r *resource
 				e.liveLog(as.env.Worktree, r.Name, "live-update run %q failed: %v", step.Run, err)
 				return err
 			}
+		case step.LocalRun != "":
+			if !triggered(step.Trigger, changed, as.info.Path) {
+				continue
+			}
+			if err := e.liveLocalRun(ctx, as, r, step.LocalRun); err != nil {
+				e.liveLog(as.env.Worktree, r.Name, "live-update local_run %q failed: %v", step.LocalRun, err)
+				return err
+			}
 		case step.RestartContainer:
 			if err := e.liveRestart(ctx, as, r); err != nil {
 				e.liveLog(as.env.Worktree, r.Name, "live-update restart failed: %v", err)
@@ -38,6 +54,18 @@ func (e *Engine) runLiveUpdate(ctx context.Context, as *activeStack, r *resource
 		}
 	}
 	return nil
+}
+
+func (as *activeStack) liveLock(name string) *sync.Mutex {
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	if as.liveRunning == nil {
+		as.liveRunning = map[string]*sync.Mutex{}
+	}
+	if as.liveRunning[name] == nil {
+		as.liveRunning[name] = &sync.Mutex{}
+	}
+	return as.liveRunning[name]
 }
 
 func (e *Engine) liveSync(ctx context.Context, as *activeStack, r *resource.Resource, s *resource.SyncRule) error {
@@ -86,6 +114,25 @@ func (e *Engine) liveRun(ctx context.Context, as *activeStack, r *resource.Resou
 	return nil
 }
 
+func (e *Engine) liveLocalRun(ctx context.Context, as *activeStack, r *resource.Resource, raw string) error {
+	sc := interp.Scope{Ports: as.env.Ports, Vars: as.env.Vars}
+	line, err := sc.Shell(raw)
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, "sh", "-c", line)
+	cmd.Dir = as.info.Path
+	cmd.Env = os.Environ()
+	for k, v := range as.env.Vars {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+	out, err := cmd.CombinedOutput()
+	if text := strings.TrimRight(string(out), "\n"); text != "" {
+		e.liveLog(as.env.Worktree, r.Name, "%s", text)
+	}
+	return err
+}
+
 func triggered(triggers, changed []string, root string) bool {
 	if len(triggers) == 0 {
 		return true
@@ -96,12 +143,21 @@ func triggered(triggers, changed []string, root string) bool {
 			rel = r
 		}
 		for _, t := range triggers {
-			if matchGlob(t, rel) || matchGlob(t, filepath.Base(c)) {
+			t = strings.TrimPrefix(t, "./")
+			if matchGlob(t, rel) || matchGlob(t, filepath.Base(c)) || underDir(t, rel) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func underDir(dir, path string) bool {
+	if strings.ContainsAny(dir, "*?[") {
+		return false
+	}
+	dir = strings.TrimSuffix(dir, "/")
+	return path == dir || strings.HasPrefix(path, dir+"/")
 }
 
 func matchGlob(pattern, path string) bool {
