@@ -34,3 +34,8 @@ internal/web/dist/*
 
 # Claude Code local settings + agent worktrees
 .claude/
+
+# Local demo-gif tooling (renders the committed assets/demo.gif)
+assets/demo.tape
+assets/demo.pando.star
+assets/demo-render.sh

@@ -31,6 +31,9 @@ Pando treats the worktrees of a single repo as first-class: each gets isolated,
 auto-allocated ports (`$PORT_<name>`), its own resource graph, and shared
 resources (a database, say) that come up once and are reused across branches.
 
+- **Branch and it's just running.** `git worktree add` a new branch and Pando
+  notices, allocates fresh ports, and brings the whole stack up — no second
+  `pando` command. Remove the worktree and it's torn down.
 - **Dependency graph, not a script.** Declare `deps`; Pando topologically orders
   startup, waits on readiness probes, and tears down in reverse.
 - **Builds, not just images.** Point a resource at a `build(...)` — a Dockerfile
@@ -41,8 +44,9 @@ resources (a database, say) that come up once and are reused across branches.
   noise. Edit a `.go` file → rebuild fires; edit a test → it doesn't.
 - **Live config.** Edit `pando.star`, save — the daemon diffs the stack and
   restarts only what changed.
-- **Live update.** `sync` files into a running container and `run` a rebuild
-  without a full restart.
+- **Live update.** `sync` files into a running container, `run` a rebuild inside
+  it or `local_run` one on the host, and `restart_container` the entrypoint in
+  place — no full rebuild.
 - **Shared resources.** Mark a resource `shared` and it's brought up once for the
   whole repo, not per worktree.
 - **Agent-native.** A built-in MCP server lets an AI agent inspect status, search
@@ -76,11 +80,12 @@ pando up             # starts the daemon + dashboard, brings this worktree up
 ```
 
 `pando up` auto-starts a per-repo daemon if one isn't already running, then
-brings the worktree up. The dashboard binds a **port derived from the repo**
-(7420 + an offset of the repo's identity), so every worktree of a repo shares
-one dashboard and a second repo gets its own — run the same repo twice and the
-per-repo socket makes the duplicate a no-op. Use `pando start` to run the daemon
-in the foreground instead.
+brings the worktree up. From then on the daemon watches the repo: **`git
+worktree add` a new branch and it comes up on its own** — no second `pando up`.
+The dashboard binds a **port derived from the repo** (7420 + an offset of the
+repo's identity), so every worktree of a repo shares one dashboard and a second
+repo gets its own — run the same repo twice and the per-repo socket makes the
+duplicate a no-op. Use `pando start` to run the daemon in the foreground instead.
 
 A minimal `pando.star` (Starlark — no imports, every helper is built in):
 
