@@ -186,6 +186,25 @@ func TestEngineRestartUnknownResourceErrors(t *testing.T) {
 	}
 }
 
+func TestEngineLogsUnknownResourceErrors(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	_ = eng.Register(wt(), demoStack())
+	ctx := context.Background()
+
+	if _, err := eng.Logs(ctx, api.LogQuery{Worktree: "main", Resource: "ghost"}); err == nil {
+		t.Error("logs for an unknown resource should error, not return empty")
+	}
+	if _, err := eng.Logs(ctx, api.LogQuery{Worktree: "nope", Resource: "worker"}); err == nil {
+		t.Error("logs for an unknown worktree should error")
+	}
+	if _, err := eng.Logs(ctx, api.LogQuery{Worktree: "main", Resource: "worker"}); err != nil {
+		t.Errorf("logs for a known resource should not error: %v", err)
+	}
+	if _, err := eng.Logs(ctx, api.LogQuery{Worktree: "main", Resource: configResource}); err != nil {
+		t.Errorf("logs for the synthetic config resource should pass through: %v", err)
+	}
+}
+
 func periodicStack(every time.Duration) *resource.Stack {
 	return &resource.Stack{Name: "pando", Resources: []*resource.Resource{
 		{Name: "sync", Kind: resource.KindTask, Task: &resource.TaskSpec{Cmd: "echo synced"}, Every: every},

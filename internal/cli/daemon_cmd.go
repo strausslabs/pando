@@ -28,14 +28,16 @@ import (
 
 func daemonCmd(g *globalFlags, version string) *cobra.Command {
 	var tcpAddr string
+	var autoUp bool
 	cmd := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run the Pando daemon (low-level; prefer `pando start`)",
 		RunE: func(c *cobra.Command, args []string) error {
-			return runDaemonSignal(g, version, tcpAddr, false)
+			return runDaemonSignal(g, version, tcpAddr, autoUp)
 		},
 	}
 	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "auto", "loopback address for the web UI (\"auto\" = repo-derived port, empty to disable)")
+	cmd.Flags().BoolVar(&autoUp, "auto-up", false, "bring every discovered worktree up automatically")
 	return cmd
 }
 

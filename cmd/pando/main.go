@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -10,8 +11,13 @@ import (
 var version = "dev"
 
 func main() {
-	if err := cli.Execute(version); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+	err := cli.Execute(version)
+	if err == nil {
+		return
 	}
+	var handled cli.Handled
+	if !errors.As(err, &handled) {
+		fmt.Fprintln(os.Stderr, "error:", err)
+	}
+	os.Exit(1)
 }

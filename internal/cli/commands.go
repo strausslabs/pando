@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/guyStrauss/pando/internal/api"
 	"github.com/guyStrauss/pando/internal/client"
@@ -42,6 +43,38 @@ func resolveWorktree(cl *client.Client, flag string) (string, error) {
 	return "", fmt.Errorf("could not determine current worktree; pass --worktree")
 }
 
+func resolveWorktreeWait(cl *client.Client, flag string, timeout time.Duration) (string, error) {
+	if flag != "" {
+		return flag, nil
+	}
+	if env := os.Getenv("PANDO_WORKTREE"); env != "" {
+		return env, nil
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		wts, err := cl.ListWorktrees(ctx())
+		if err != nil {
+			return "", err
+		}
+		for _, w := range wts {
+			if pathContains(w.Path, cwd) {
+				return w.Slug, nil
+			}
+		}
+		if time.Now().After(deadline) {
+			if len(wts) == 1 {
+				return wts[0].Slug, nil
+			}
+			return "", fmt.Errorf("could not determine current worktree; pass --worktree")
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+}
+
 func pathContains(parent, child string) bool {
 	p, err1 := canonPath(parent)
 	c, err2 := canonPath(child)
@@ -74,16 +107,39 @@ func upCmd(g *globalFlags) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			wt, err := resolveWorktree(cl, worktree)
+			wt, err := resolveWorktreeWait(cl, worktree, 10*time.Second)
 			if err != nil {
 				return err
 			}
-			return cl.Up(ctx(), wt, force)
+			if err := cl.Up(ctx(), wt, force); err != nil {
+				return err
+			}
+			if g.json {
+				st, err := cl.Status(ctx())
+				if err != nil {
+					return err
+				}
+				return printJSON(worktreeIn(st, wt))
+			}
+			fmt.Printf("%s is up\n", wt)
+			if st, err := cl.Status(ctx()); err == nil {
+				printStatus(worktreeIn(st, wt))
+			}
+			return nil
 		},
 	}
 	addWorktreeFlag(cmd, &worktree)
 	cmd.Flags().BoolVar(&force, "force", false, "re-run run-once tasks")
 	return cmd
+}
+
+func worktreeIn(st []api.WorktreeStatus, slug string) []api.WorktreeStatus {
+	for _, ws := range st {
+		if ws.Worktree == slug {
+			return []api.WorktreeStatus{ws}
+		}
+	}
+	return nil
 }
 
 func downCmd(g *globalFlags) *cobra.Command {
@@ -136,6 +192,9 @@ func printStatus(st []api.WorktreeStatus) {
 	tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "WORKTREE\tRESOURCE\tKIND\tPHASE\tPORT")
 	for _, ws := range st {
+		if ws.Error != "" {
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", ws.Worktree, "", "", "config error", "")
+		}
 		for _, r := range ws.Resources {
 			port := ""
 			if r.Port > 0 {
@@ -145,6 +204,11 @@ func printStatus(st []api.WorktreeStatus) {
 		}
 	}
 	_ = tw.Flush()
+	for _, ws := range st {
+		if ws.Error != "" {
+			_, _ = fmt.Fprintf(os.Stderr, "config error in %s: %s\n", ws.Worktree, ws.Error)
+		}
+	}
 }
 
 func logsCmd(g *globalFlags) *cobra.Command {

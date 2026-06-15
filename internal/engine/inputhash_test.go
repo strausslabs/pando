@@ -296,6 +296,7 @@ func TestEngineWatchRerunsOnChangeWithoutManualUp(t *testing.T) {
 	if err := eng.Up(ctx, wtree.Slug, false); err != nil {
 		t.Fatalf("up: %v", err)
 	}
+	defer func() { _ = eng.Down(ctx, wtree.Slug) }()
 	if !waitForLine(logs, wtree.Slug, "build", "built") {
 		t.Fatal("build task never ran on initial up")
 	}
