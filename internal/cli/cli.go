@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const updateAvailableMsg = "a newer pando is available: %s → %s · brew upgrade pando\n"
+
 type globalFlags struct {
 	socket string
 	config string

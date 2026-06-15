@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/client"
 	"github.com/guyStrauss/pando/internal/daemon"
 	"github.com/guyStrauss/pando/internal/logbuf"
 	"github.com/guyStrauss/pando/internal/selfupdate"
@@ -172,17 +171,8 @@ func updateDaemon(t *testing.T) string {
 	go func() { _ = srv.Serve(ctx, sock) }()
 	t.Cleanup(cancel)
 
-	cl := client.New(sock)
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		hctx, hcancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-		err := cl.Health(hctx)
-		hcancel()
-		if err == nil {
-			return sock
-		}
-		time.Sleep(20 * time.Millisecond)
+	if err := waitForSocket(context.Background(), sock, true, 3*time.Second); err != nil {
+		t.Fatalf("update daemon never came up: %v", err)
 	}
-	t.Fatal("update daemon never came up")
-	return ""
+	return sock
 }

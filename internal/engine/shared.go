@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/guyStrauss/pando/internal/api"
 	"github.com/guyStrauss/pando/internal/dag"
@@ -80,16 +79,7 @@ func (e *Engine) mergeShared(incoming []*resource.Resource) error {
 		Vars:     map[string]string{},
 	}
 
-	as := &activeStack{
-		info:    api.WorktreeInfo{Branch: "shared", Slug: sharedSlug, Ports: ports},
-		stack:   stack,
-		graph:   g,
-		env:     env,
-		phases:  map[string]scheduler.Phase{},
-		errs:    map[string]string{},
-		nextRun: map[string]time.Time{},
-	}
-	as.sched = e.newScheduler(sharedSlug, g, env, as)
+	as := e.newActiveStack(sharedSlug, api.WorktreeInfo{Branch: "shared", Slug: sharedSlug, Ports: ports}, stack, g, env)
 
 	e.mu.Lock()
 	if cur != nil {

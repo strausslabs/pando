@@ -55,8 +55,12 @@ func runtimeDir() string {
 	return filepath.Join(base, fmt.Sprintf("pando-%d", os.Getuid()))
 }
 
+func repoHash(gitCommonDir string) [32]byte {
+	return sha256.Sum256([]byte(gitCommonDir))
+}
+
 func repoKey(gitCommonDir string) string {
-	sum := sha256.Sum256([]byte(gitCommonDir))
+	sum := repoHash(gitCommonDir)
 	return hex.EncodeToString(sum[:8])
 }
 
@@ -65,7 +69,7 @@ func SocketPath(gitCommonDir string) string {
 }
 
 func UIPort(gitCommonDir string) int {
-	sum := sha256.Sum256([]byte(gitCommonDir))
+	sum := repoHash(gitCommonDir)
 	off := binary.BigEndian.Uint32(sum[:4]) % uiPortSpan
 	return uiBasePort + int(off)
 }

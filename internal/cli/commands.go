@@ -12,6 +12,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func addWorktreeFlag(cmd *cobra.Command, target *string) {
+	cmd.Flags().StringVarP(target, "worktree", "w", "", "target worktree slug")
+}
+
 func resolveWorktree(cl *client.Client, flag string) (string, error) {
 	if flag != "" {
 		return flag, nil
@@ -77,7 +81,7 @@ func upCmd(g *globalFlags) *cobra.Command {
 			return cl.Up(ctx(), wt, force)
 		},
 	}
-	cmd.Flags().StringVarP(&worktree, "worktree", "w", "", "target worktree slug")
+	addWorktreeFlag(cmd, &worktree)
 	cmd.Flags().BoolVar(&force, "force", false, "re-run run-once tasks")
 	return cmd
 }
@@ -99,7 +103,7 @@ func downCmd(g *globalFlags) *cobra.Command {
 			return cl.Down(ctx(), wt)
 		},
 	}
-	cmd.Flags().StringVarP(&worktree, "worktree", "w", "", "target worktree slug")
+	addWorktreeFlag(cmd, &worktree)
 	return cmd
 }
 
@@ -121,7 +125,7 @@ func statusCmd(g *globalFlags) *cobra.Command {
 			}
 			printStatus(st)
 			if up, err := cl.Version(ctx()); err == nil && up.Available {
-				fmt.Fprintf(os.Stderr, "\na newer pando is available: %s → %s · brew upgrade pando\n", up.Current, up.Latest)
+				fmt.Fprintf(os.Stderr, "\n"+updateAvailableMsg, up.Current, up.Latest)
 			}
 			return nil
 		},
@@ -177,7 +181,7 @@ func logsCmd(g *globalFlags) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&worktree, "worktree", "w", "", "target worktree slug")
+	addWorktreeFlag(cmd, &worktree)
 	cmd.Flags().IntVar(&tail, "tail", 200, "number of trailing lines")
 	cmd.Flags().StringVar(&grep, "grep", "", "filter lines by regex")
 	return cmd
@@ -220,7 +224,7 @@ func execCmd(g *globalFlags) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&worktree, "worktree", "w", "", "target worktree slug")
+	addWorktreeFlag(cmd, &worktree)
 	return cmd
 }
 
@@ -242,7 +246,7 @@ func restartCmd(g *globalFlags) *cobra.Command {
 			return cl.Restart(ctx(), wt, args[0])
 		},
 	}
-	cmd.Flags().StringVarP(&worktree, "worktree", "w", "", "target worktree slug")
+	addWorktreeFlag(cmd, &worktree)
 	return cmd
 }
 

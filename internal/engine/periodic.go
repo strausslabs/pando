@@ -45,10 +45,8 @@ func (e *Engine) periodicLoop(ctx context.Context, as *activeStack, name string,
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := as.sched.UpSubset(ctx, name); err != nil && e.cfg.Logs != nil {
-				e.cfg.Logs.Append(as.env.Worktree, name, logbuf.System,
-					fmt.Sprintf("periodic run failed: %v", err),
-					func() logbuf.Line { return logbuf.Line{Time: e.cfg.Clock()} })
+			if err := as.sched.UpSubset(ctx, name); err != nil {
+				e.logAppend(as.env.Worktree, name, logbuf.System, fmt.Sprintf("periodic run failed: %v", err))
 			}
 			as.mu.Lock()
 			as.nextRun[name] = e.cfg.Clock().Add(every)

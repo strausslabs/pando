@@ -104,10 +104,14 @@ func (e *Engine) ClearConfigError(slug string) {
 }
 
 func (e *Engine) streamConfig(slug string, stream logbuf.Stream, text string) {
+	e.logAppend(slug, configResource, stream, text)
+}
+
+func (e *Engine) logAppend(worktree, name string, stream logbuf.Stream, text string) {
 	if e.cfg.Logs == nil {
 		return
 	}
-	e.cfg.Logs.Append(slug, configResource, stream, text,
+	e.cfg.Logs.Append(worktree, name, stream, text,
 		func() logbuf.Line { return logbuf.Line{Time: e.cfg.Clock()} })
 }
 
@@ -150,17 +154,21 @@ func (e *Engine) compile(info api.WorktreeInfo, stack *resource.Stack) (*activeS
 		Ports:    ports,
 		Vars:     map[string]string{},
 	}
+	return e.newActiveStack(info.Slug, api.WorktreeInfo{Path: info.Path, Branch: info.Branch, Head: info.Head, Slug: info.Slug, Ports: ports}, local, g, env), nil
+}
+
+func (e *Engine) newActiveStack(slug string, info api.WorktreeInfo, stack *resource.Stack, g *dag.Graph, env scheduler.Env) *activeStack {
 	as := &activeStack{
-		info:    api.WorktreeInfo{Path: info.Path, Branch: info.Branch, Head: info.Head, Slug: info.Slug, Ports: ports},
-		stack:   local,
+		info:    info,
+		stack:   stack,
 		graph:   g,
 		env:     env,
 		phases:  map[string]scheduler.Phase{},
 		errs:    map[string]string{},
 		nextRun: map[string]time.Time{},
 	}
-	as.sched = e.newScheduler(info.Slug, g, env, as)
-	return as, nil
+	as.sched = e.newScheduler(slug, g, env, as)
+	return as
 }
 
 func (e *Engine) newScheduler(slug string, g *dag.Graph, env scheduler.Env, as *activeStack) *scheduler.Scheduler {

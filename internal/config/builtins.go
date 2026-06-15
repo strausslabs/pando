@@ -216,39 +216,32 @@ var (
 // toNanos converts an int (already nanoseconds) or a string like "30s"/"500ms"
 // into a nanosecond count, matching Go's time.Duration JSON.
 func toNanos(v starlark.Value) (int64, error) {
-	if i, ok := v.(starlark.Int); ok {
-		n, _ := i.Int64()
-		return n, nil
-	}
-	s, ok := starlark.AsString(v)
-	if !ok {
-		return 0, fmt.Errorf("want duration string or int ns, got %s", v.Type())
-	}
-	m := durRe.FindStringSubmatch(strings.TrimSpace(s))
-	if m == nil {
-		return 0, fmt.Errorf("bad duration %q", s)
-	}
-	f, _ := strconv.ParseFloat(m[1], 64)
-	unit := map[string]float64{"ms": 1e6, "s": 1e9, "m": 60e9, "h": 3600e9}[m[2]]
-	return int64(f * unit), nil
+	return parseQuantity(v, durRe, map[string]float64{"ms": 1e6, "s": 1e9, "m": 60e9, "h": 3600e9}, "duration")
 }
 
 // toBytes converts an int (already bytes) or a string like "256m"/"1g" into a
 // byte count.
 func toBytes(v starlark.Value) (int64, error) {
+	return parseQuantity(v, bytesRe, map[string]float64{"": 1, "b": 1, "k": 1024, "kb": 1024, "m": 1 << 20, "mb": 1 << 20, "g": 1 << 30, "gb": 1 << 30}, "size")
+}
+
+func parseQuantity(v starlark.Value, re *regexp.Regexp, units map[string]float64, typeWord string) (int64, error) {
 	if i, ok := v.(starlark.Int); ok {
 		n, _ := i.Int64()
 		return n, nil
 	}
 	s, ok := starlark.AsString(v)
 	if !ok {
-		return 0, fmt.Errorf("want size string or int bytes, got %s", v.Type())
+		unit := "ns"
+		if typeWord == "size" {
+			unit = "bytes"
+		}
+		return 0, fmt.Errorf("want %s string or int %s, got %s", typeWord, unit, v.Type())
 	}
-	m := bytesRe.FindStringSubmatch(strings.TrimSpace(s))
+	m := re.FindStringSubmatch(strings.TrimSpace(s))
 	if m == nil {
-		return 0, fmt.Errorf("bad size %q", s)
+		return 0, fmt.Errorf("bad %s %q", typeWord, s)
 	}
 	f, _ := strconv.ParseFloat(m[1], 64)
-	unit := map[string]float64{"": 1, "b": 1, "k": 1024, "kb": 1024, "m": 1 << 20, "mb": 1 << 20, "g": 1 << 30, "gb": 1 << 30}
-	return int64(f * unit[strings.ToLower(m[2])]), nil
+	return int64(f * units[strings.ToLower(m[2])]), nil
 }

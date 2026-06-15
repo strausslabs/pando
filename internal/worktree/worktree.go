@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -122,7 +123,7 @@ func DefaultAllocator() PortAllocator {
 func (a PortAllocator) Allocate(worktreePath string, services []string) map[string]int {
 	block := a.blockStart(worktreePath)
 	sorted := append([]string(nil), services...)
-	sortStrings(sorted)
+	sort.Strings(sorted)
 	out := make(map[string]int, len(sorted))
 	used := make(map[int]bool, len(sorted))
 	for _, svc := range sorted {
@@ -137,25 +138,18 @@ func (a PortAllocator) Allocate(worktreePath string, services []string) map[stri
 }
 
 func (a PortAllocator) slot(service string) int {
-	sum := sha256.Sum256([]byte(service))
-	n := binary.BigEndian.Uint64(sum[:8])
-	return int(n % uint64(a.Stride))
+	return int(hashToUint64(service) % uint64(a.Stride))
 }
 
 func (a PortAllocator) blockStart(path string) int {
-	sum := sha256.Sum256([]byte(path))
-	n := binary.BigEndian.Uint64(sum[:8])
 	blocks := uint64(a.Range / a.Stride)
 	if blocks == 0 {
 		blocks = 1
 	}
-	return a.Base + int(n%blocks)*a.Stride
+	return a.Base + int(hashToUint64(path)%blocks)*a.Stride
 }
 
-func sortStrings(s []string) {
-	for i := 1; i < len(s); i++ {
-		for j := i; j > 0 && s[j-1] > s[j]; j-- {
-			s[j-1], s[j] = s[j], s[j-1]
-		}
-	}
+func hashToUint64(s string) uint64 {
+	sum := sha256.Sum256([]byte(s))
+	return binary.BigEndian.Uint64(sum[:8])
 }
