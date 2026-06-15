@@ -30,8 +30,8 @@ func (e *Engine) runLiveUpdate(ctx context.Context, as *activeStack, r *resource
 				e.liveLog(as.env.Worktree, r.Name, "live-update run %q failed: %v", step.Run, err)
 				return err
 			}
-		case step.Restart:
-			if err := as.sched.UpSubset(ctx, r.Name); err != nil {
+		case step.RestartContainer:
+			if err := e.liveRestart(ctx, as, r); err != nil {
 				e.liveLog(as.env.Worktree, r.Name, "live-update restart failed: %v", err)
 				return err
 			}
@@ -54,6 +54,15 @@ func (e *Engine) liveSync(ctx context.Context, as *activeStack, r *resource.Reso
 		local = filepath.Join(as.info.Path, local)
 	}
 	return syncer.Sync(ctx, r, as.env, local, s.Container)
+}
+
+func (e *Engine) liveRestart(ctx context.Context, as *activeStack, r *resource.Resource) error {
+	if exec, ok := e.cfg.Executors[r.Kind]; ok {
+		if restarter, ok := exec.(scheduler.Restarter); ok {
+			return restarter.RestartContainer(ctx, r, as.env)
+		}
+	}
+	return as.sched.UpSubset(ctx, r.Name)
 }
 
 func (e *Engine) liveRun(ctx context.Context, as *activeStack, r *resource.Resource, cmd string) error {

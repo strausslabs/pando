@@ -93,10 +93,10 @@ type SyncRule struct {
 }
 
 type LiveUpdateStep struct {
-	Sync    *SyncRule `json:"sync,omitempty" validate:"omitempty"`
-	Run     string    `json:"run,omitempty"`
-	Trigger []string  `json:"trigger,omitempty"`
-	Restart bool      `json:"restart,omitempty"`
+	Sync             *SyncRule `json:"sync,omitempty" validate:"omitempty"`
+	Run              string    `json:"run,omitempty"`
+	Trigger          []string  `json:"trigger,omitempty"`
+	RestartContainer bool      `json:"restartContainer,omitempty"`
 }
 
 type Hooks struct {

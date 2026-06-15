@@ -233,6 +233,14 @@ func (b *Backend) Stop(ctx context.Context, r *resource.Resource, env scheduler.
 	return nil
 }
 
+func (b *Backend) RestartContainer(ctx context.Context, r *resource.Resource, env scheduler.Env) error {
+	if b.pingErr != nil {
+		return fmt.Errorf("resource %q needs Docker but the daemon isn't reachable: %w", r.Name, b.pingErr)
+	}
+	timeout := 10
+	return b.cli.ContainerRestart(ctx, containerName(env.Project, r.Name), container.StopOptions{Timeout: &timeout})
+}
+
 func (b *Backend) removeContainer(ctx context.Context, project, res string) {
 	name := containerName(project, res)
 	rmCtx, cancel := context.WithTimeout(ctx, 20*time.Second)

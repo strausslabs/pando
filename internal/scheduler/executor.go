@@ -58,6 +58,10 @@ type Syncer interface {
 	Sync(ctx context.Context, r *resource.Resource, env Env, localPath, containerPath string) error
 }
 
+type Restarter interface {
+	RestartContainer(ctx context.Context, r *resource.Resource, env Env) error
+}
+
 type Env struct {
 	Worktree string
 	Project  string

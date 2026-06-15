@@ -449,12 +449,12 @@ func TestRunLiveUpdateCapturesRunStderrOnSuccess(t *testing.T) {
 	}
 }
 
-func TestRunLiveUpdateRestartReruns(t *testing.T) {
+func TestRunLiveUpdateRestartRerunsLocalProcess(t *testing.T) {
 	eng, logs, _ := testEngine(t)
 	r := &resource.Resource{
 		Name: "api", Kind: resource.KindLocal,
 		Local:      &resource.LocalSpec{Cmd: "echo booting; sleep 30"},
-		LiveUpdate: []resource.LiveUpdateStep{{Restart: true}},
+		LiveUpdate: []resource.LiveUpdateStep{{RestartContainer: true}},
 	}
 	_ = eng.Register(wt(), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
 	ctx := context.Background()

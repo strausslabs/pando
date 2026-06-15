@@ -158,7 +158,7 @@ define_stack(
             liveUpdate = [
                 sync("./src", "/app/src"),
                 run("make", trigger = ["a.go", "b.go"]),
-                restart(),
+                restart_container(),
             ],
         ),
     },
@@ -170,6 +170,9 @@ define_stack(
 	}
 	if len(steps[1].Trigger) != 2 {
 		t.Errorf("trigger list not parsed: %+v", steps[1].Trigger)
+	}
+	if !steps[2].RestartContainer {
+		t.Errorf("restart_container() should set RestartContainer: %+v", steps[2])
 	}
 }
 
