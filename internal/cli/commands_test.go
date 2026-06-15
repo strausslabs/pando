@@ -145,13 +145,23 @@ func worktreeDaemon(t *testing.T, wts []api.WorktreeInfo) *client.Client {
 
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
+	return capture(t, &os.Stdout, fn)
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	return capture(t, &os.Stderr, fn)
+}
+
+func capture(t *testing.T, target **os.File, fn func()) string {
+	t.Helper()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
-	saved := os.Stdout
-	os.Stdout = w
-	defer func() { os.Stdout = saved }()
+	saved := *target
+	*target = w
+	defer func() { *target = saved }()
 	fn()
 	_ = w.Close()
 	out, _ := io.ReadAll(r)

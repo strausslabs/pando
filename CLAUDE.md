@@ -84,8 +84,9 @@ These apply to **both** the Go backend and the TS frontend.
   pre-commit install --hook-type pre-push`. Commit runs the fast checks (format,
   vet, lint, `go test -short`, UI typecheck/lint/coverage); push runs the full
   `go test -race` suite. The Playwright e2e job runs in CI only.
-- Commits go directly on `main`. Do **not** mention Claude / Claude Code or add
-  `Co-Authored-By` trailers.
+- Work on a branch and open a PR; CI gates the merge. Don't commit straight to
+  `main`. Do **not** mention Claude / Claude Code or add `Co-Authored-By`
+  trailers.
 
 ## Development lifecycle
 
