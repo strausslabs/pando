@@ -1,2 +1,7 @@
 [test]
 preload = ["./src/test/setup.ts"]
+coverage = true
+coverageReporter = ["text", "lcov"]
+coverageSkipTestFiles = true
+coverageThreshold = { lines = 0.9, functions = 0.85, statements = 0.9 }
+coveragePathIgnorePatterns = ["src/main.tsx", "src/Tree.tsx", "src/App.tsx", "src/test/"]

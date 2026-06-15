@@ -44,21 +44,19 @@ func toGo(v starlark.Value) (any, error) {
 	return out, nil
 }
 
+var serviceFields = map[string]bool{
+	"deps": true, "every": true, "shared": true, "build": true,
+	"compose": true, "local": true, "task": true, "liveUpdate": true,
+	"hooks": true, "runWhen": true, "onChange": true, "ready": true,
+}
+
 func normalizeResource(name string, svc map[string]any) (map[string]any, error) {
 	res := map[string]any{"name": name, "kind": kindOf(svc)}
 	for k, v := range svc {
-		switch k {
-		case "deps", "every", "preview", "shared", "build", "compose", "local", "task", "liveUpdate", "hooks":
-			res[k] = v
-		case "runWhen":
-			res["runWhen"] = v
-		case "onChange":
-			res["onChange"] = v
-		case "ready":
-			res["ready"] = v
-		default:
+		if !serviceFields[k] {
 			return nil, fmt.Errorf("service %q: unknown field %q", name, k)
 		}
+		res[k] = v
 	}
 	return res, nil
 }

@@ -50,7 +50,7 @@ repos:
 
       - id: ui-test
         name: ui test
-        entry: bash -c 'cd ui && bun test'
+        entry: bash -c 'cd ui && bun run test:cov'
         language: system
         files: ^ui/.*\.(ts|tsx)$
         pass_filenames: false

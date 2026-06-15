@@ -14,6 +14,11 @@ These apply to **both** the Go backend and the TS frontend.
   function in an `else`. Keep the happy path at the lowest indentation.
 - **Inline single-use trivial helpers.** A one-line helper called from one place
   earns its name only if the name adds meaning. Otherwise inline it.
+- **File order: constants, vars, structs, public funcs, private funcs.** Within a
+  Go file, declare in that order. Promote a struct to a named type only if it is
+  used more than once; a shape used in exactly one place is inlined (an anonymous
+  struct or the literal at its use site), not named. Don't leave section-divider
+  comments behind — the ordering itself is the structure.
 - **Return shapes match their callers.** Return the type the caller actually
   uses (`(T, bool)` / `(T, error)` consistently); don't return a struct the
   caller immediately destructures into the same fields every time.
@@ -59,12 +64,26 @@ These apply to **both** the Go backend and the TS frontend.
 ## Build & test
 
 - Backend: `go build ./...`, `go vet ./...`, `golangci-lint run`, and
-  `go test ./...` from the repo root.
-- Frontend (in `ui/`): `bun run typecheck`, `bun run lint`, `bun test`, and
-  `bun run build` (builds into `internal/web/dist` for `go:embed`).
+  `go test ./...` from the repo root. Exclude the vendored `ui/node_modules`
+  Go package: `go test $(go list ./... | grep -v /ui/node_modules/)`.
+- Frontend (in `ui/`): `bun run typecheck`, `bun run lint`, `bun run test:cov`,
+  and `bun run build` (builds into `internal/web/dist` for `go:embed`).
+- **Coverage is gated, not aspirational.** UI: `bun test --coverage` enforces a
+  per-metric threshold via `bunfig.toml` (`App.tsx`/`Tree.tsx`/`main.tsx` are
+  excluded — App is covered by the e2e suite). Go: Codecov's project status
+  check gates the PR; `cmd/pando` (the `os.Exit` wrapper) is the only thing in
+  the ignore list. Don't pad the ignore list to hit a number — cover the code or
+  state plainly why a path is genuinely untestable (process spawn, signal
+  handlers, real fs-watch loops).
+- **UI e2e replays a real backend.** `ui/e2e/record/record.go` boots a real
+  daemon over a host-process stack and snapshots each endpoint + `/events`
+  frames into `ui/e2e/fixtures/`; `bun run e2e` (Playwright) replays them
+  against the built UI. Regenerate fixtures with `bun run e2e:record` whenever
+  the wire shape changes — never hand-edit them.
 - **Pre-commit mirrors CI locally.** Install once with `pre-commit install &&
   pre-commit install --hook-type pre-push`. Commit runs the fast checks (format,
-  vet, lint, `go test -short`, UI); push runs the full `go test -race` suite.
+  vet, lint, `go test -short`, UI typecheck/lint/coverage); push runs the full
+  `go test -race` suite. The Playwright e2e job runs in CI only.
 - Commits go directly on `main`. Do **not** mention Claude / Claude Code or add
   `Co-Authored-By` trailers.
 

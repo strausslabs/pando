@@ -1,0 +1,10 @@
+[
+  {
+    "seq": 4,
+    "time": "2026-06-15T10:01:47.979607+03:00",
+    "worktree": "feat-login",
+    "resource": "api",
+    "stream": "stdout",
+    "text": "feat api up"
+  }
+]

@@ -273,30 +273,6 @@ func TestEngineStatusReportsLocalMemory(t *testing.T) {
 	}
 }
 
-func TestEngineStatusReportsPreview(t *testing.T) {
-	eng, _, _ := testEngine(t)
-	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{
-		{Name: "web", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}, Preview: true},
-		{Name: "api", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}},
-	}}
-	_ = eng.Register(wt(), stack)
-	ctx := context.Background()
-	_ = eng.Up(ctx, "main", false)
-	defer func() { _ = eng.Down(ctx, "main") }()
-
-	st, _ := eng.Status(ctx)
-	preview := map[string]bool{}
-	for _, r := range st[0].Resources {
-		preview[r.Name] = r.Preview
-	}
-	if !preview["web"] {
-		t.Error("web should be flagged preview")
-	}
-	if preview["api"] {
-		t.Error("api should not be flagged preview")
-	}
-}
-
 func TestEngineSharedResourceHoistedAndDependentRuns(t *testing.T) {
 	eng, logs, _ := testEngine(t)
 	if err := eng.Register(wt(), sharedStack()); err != nil {

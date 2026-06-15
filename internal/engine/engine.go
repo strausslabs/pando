@@ -423,13 +423,12 @@ func (e *Engine) Status(ctx context.Context) ([]api.WorktreeStatus, error) {
 		for _, r := range as.stack.Resources {
 			phase := as.phases[r.Name]
 			rs := api.ResourceStatus{
-				Name:    r.Name,
-				Kind:    string(r.Kind),
-				Phase:   string(phase),
-				Ready:   phase.OK(),
-				Port:    as.info.Ports[r.Name],
-				Error:   as.errs[r.Name],
-				Preview: r.Preview,
+				Name:  r.Name,
+				Kind:  string(r.Kind),
+				Phase: string(phase),
+				Ready: phase.OK(),
+				Port:  as.info.Ports[r.Name],
+				Error: as.errs[r.Name],
 			}
 			if phase.OK() {
 				if s, ok := e.cfg.Executors[r.Kind].(scheduler.Sampler); ok {

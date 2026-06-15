@@ -100,7 +100,7 @@ func TestLoadParsesLiveUpdate(t *testing.T) {
 	}
 }
 
-func TestLoadParsesEveryPreviewMemory(t *testing.T) {
+func TestLoadParsesEveryMemory(t *testing.T) {
 	stack := load(t, "testdata/periodic.star")
 
 	sync, ok := stack.Get("sync")
@@ -112,14 +112,6 @@ func TestLoadParsesEveryPreviewMemory(t *testing.T) {
 	}
 	if sync.DefaultRunPolicy() != resource.RunAlways {
 		t.Errorf("periodic task policy = %q, want always", sync.DefaultRunPolicy())
-	}
-
-	web, _ := stack.Get("web")
-	if !web.Preview {
-		t.Error("web should be flagged preview")
-	}
-	if sync.Preview {
-		t.Error("sync should not be flagged preview")
 	}
 
 	cache, _ := stack.Get("cache")
