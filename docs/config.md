@@ -48,7 +48,8 @@ Wraps one resource. Exactly one of `local`, `task`, or `compose` should be set.
 | `deps` | list[string] | Names this resource waits on before starting. |
 | `ready` | probe | Readiness probe — Pando holds dependents until it passes. See [Probes](#probes). |
 | `runWhen` | string | `"once"`, `"always"`, `"onChange"`, or `"manual"`. |
-| `onChange` | list[string] | Glob/paths that trigger a rerun when `runWhen = "onChange"`. Required in that mode. |
+| `onChange` | list[string] | Globs whose files trigger a rerun when `runWhen = "onChange"`. Required in that mode. See [onChange](#onchange). |
+| `ignore` | list[string] | Globs subtracted from `onChange` — files that should *not* trigger a rerun (e.g. `["**/*_test.go"]`). |
 | `every` | duration | Run periodically (e.g. `"30s"`). Implies `runWhen = "always"`. |
 | `shared` | bool | Bring up **once for the whole repo**, reused across worktrees. Shared resources may depend only on other shared resources. |
 | `liveUpdate` | list | In-place update steps; see [Live update](#live-update). |
@@ -190,6 +191,28 @@ values, and probe targets.
 | `always` | Keep running / restart on exit (default for `local`/`compose`). |
 | `onChange` | Rerun when files under `onChange` change. |
 | `manual` | Only via `pando up <name>` / the dashboard. |
+
+### `onChange`
+
+A `runWhen = "onChange"` resource declares the inputs that should trigger it:
+
+```python
+service(
+    task = task(cmd = "go build ./..."),
+    runWhen = "onChange",
+    onChange = ["**/*.go", "go.mod", "go.sum"],
+    ignore   = ["**/*_test.go"],
+)
+```
+
+- Pando watches the directories the `onChange` globs cover and reruns the task
+  (and its dependents) when a matching file changes — no manual `pando up`.
+- A rerun is **content-gated**: Pando hashes the matched files (size + mtime), so
+  a save that doesn't change anything won't rebuild. At `up` time the same hash
+  decides whether to skip a task that already ran.
+- `ignore` globs are subtracted from the watched/hashed set.
+- `.git`, `node_modules`, and `.pando` are always ignored. (`.pando` holds the
+  daemon's own state, which it rewrites constantly — watching it would loop.)
 
 ## A fuller example
 
