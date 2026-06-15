@@ -95,6 +95,43 @@ func TestInputHashNoOnChange(t *testing.T) {
 	}
 }
 
+func TestOnChangeDirs(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"a", "a/b", "node_modules", ".git"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := &resource.Resource{
+		Name: "x", Kind: resource.KindTask,
+		RunWhen: resource.RunOnChange, OnChange: []string{"a/**/*.go"},
+	}
+	dirs := onChangeDirs(r, root)
+	has := func(rel string) bool {
+		for _, d := range dirs {
+			if d == filepath.Join(root, rel) {
+				return true
+			}
+		}
+		return false
+	}
+	if !has("a") || !has("a/b") {
+		t.Errorf("onChangeDirs should include a and a/b: %v", dirs)
+	}
+	for _, d := range dirs {
+		if filepath.Base(d) == "node_modules" || filepath.Base(d) == ".git" {
+			t.Errorf("onChangeDirs should skip %s", d)
+		}
+	}
+}
+
+func TestOnChangeDirsIgnoresNonOnChange(t *testing.T) {
+	r := &resource.Resource{Name: "x", Kind: resource.KindTask, Task: &resource.TaskSpec{Cmd: "true"}}
+	if got := onChangeDirs(r, t.TempDir()); got != nil {
+		t.Errorf("onChangeDirs should be nil for a non-onChange resource, got %v", got)
+	}
+}
+
 func TestEngineSkipsOnChangeUntilInputChanges(t *testing.T) {
 	eng, logs, _ := testEngine(t)
 	root := t.TempDir()
@@ -135,5 +172,39 @@ func TestEngineSkipsOnChangeUntilInputChanges(t *testing.T) {
 	}
 	if !waitForCount(logs, wtree.Slug, "seeder", "seeded", first+1) {
 		t.Errorf("changed input should re-run the task: still %d", countLines(logs, wtree.Slug, "seeder", "seeded"))
+	}
+}
+
+func TestEngineWatchRerunsOnChangeWithoutManualUp(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	root := t.TempDir()
+	src := filepath.Join(root, "main.go")
+	if err := os.WriteFile(src, []byte("package main\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{{
+		Name: "build", Kind: resource.KindTask,
+		Task:     &resource.TaskSpec{Cmd: "echo built"},
+		RunWhen:  resource.RunOnChange,
+		OnChange: []string{"*.go"},
+	}}}
+	wtree := worktreeAt(root)
+	if err := eng.Register(wtree, stack); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	ctx := t.Context()
+	if err := eng.Up(ctx, wtree.Slug, false); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	if !waitForLine(logs, wtree.Slug, "build", "built") {
+		t.Fatal("build task never ran on initial up")
+	}
+	before := countLines(logs, wtree.Slug, "build", "built")
+
+	if err := os.WriteFile(src, []byte("package main\nvar x = 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !waitForCount(logs, wtree.Slug, "build", "built", before+1) {
+		t.Errorf("editing a watched .go file should re-run the build via the watcher, no manual up: still %d", before)
 	}
 }

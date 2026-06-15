@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -39,26 +40,64 @@ func liveUpdatePaths(r *resource.Resource, root string) []string {
 	return paths
 }
 
-func (e *Engine) startLiveUpdate(as *activeStack) {
-	as.stopLiveUpdate()
-
-	owner := map[string]*resource.Resource{}
-	for _, r := range as.stack.Resources {
-		if len(r.LiveUpdate) == 0 {
+func onChangeDirs(r *resource.Resource, root string) []string {
+	if r.DefaultRunPolicy() != resource.RunOnChange {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	for _, pattern := range r.OnChange {
+		base, glob := splitGlobBase(pattern)
+		start := filepath.Join(root, base)
+		if glob == "" {
+			seen[watchDir(start)] = struct{}{}
 			continue
 		}
+		_ = filepath.WalkDir(start, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || !d.IsDir() {
+				return nil
+			}
+			if name := d.Name(); name == ".git" || name == "node_modules" {
+				return filepath.SkipDir
+			}
+			seen[path] = struct{}{}
+			return nil
+		})
+	}
+	dirs := make([]string, 0, len(seen))
+	for d := range seen {
+		dirs = append(dirs, d)
+	}
+	return dirs
+}
+
+func (e *Engine) startWatchers(as *activeStack) {
+	as.stopWatchers()
+
+	actions := map[string][]func(context.Context, []string){}
+	watch := func(dir string, fn func(context.Context, []string)) {
+		actions[dir] = append(actions[dir], fn)
+	}
+	for _, r := range as.stack.Resources {
+		r := r
 		for _, p := range liveUpdatePaths(r, as.info.Path) {
-			owner[watchDir(p)] = r
+			watch(watchDir(p), func(ctx context.Context, paths []string) {
+				_ = e.runLiveUpdate(ctx, as, r, paths)
+			})
+		}
+		for _, dir := range onChangeDirs(r, as.info.Path) {
+			watch(dir, func(ctx context.Context, _ []string) {
+				_ = as.sched.UpSubset(ctx, r.Name)
+			})
 		}
 	}
-	if len(owner) == 0 {
+	if len(actions) == 0 {
 		return
 	}
 
 	lw := &liveWatcher{}
 	w, err := watcher.New(300*time.Millisecond, func(key string, paths []string) {
-		r, ok := owner[key]
-		if !ok {
+		fns := actions[key]
+		if len(fns) == 0 {
 			return
 		}
 		if len(paths) == 0 {
@@ -66,13 +105,15 @@ func (e *Engine) startLiveUpdate(as *activeStack) {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		_ = e.runLiveUpdate(ctx, as, r, paths)
+		for _, fn := range fns {
+			fn(ctx, paths)
+		}
 	})
 	if err != nil {
-		e.liveLog(as.env.Worktree, "", "live-update watcher failed: %v", err)
+		e.liveLog(as.env.Worktree, "", "watcher failed: %v", err)
 		return
 	}
-	for dir := range owner {
+	for dir := range actions {
 		_ = w.Add(dir, dir)
 	}
 	lw.w = w
@@ -86,7 +127,7 @@ func (e *Engine) startLiveUpdate(as *activeStack) {
 	as.mu.Unlock()
 }
 
-func (as *activeStack) stopLiveUpdate() {
+func (as *activeStack) stopWatchers() {
 	as.mu.Lock()
 	lw := as.live
 	as.live = nil
