@@ -107,6 +107,26 @@ define_stack(
 	}
 }
 
+func TestOnChangeIgnoreParses(t *testing.T) {
+	st := mustLoadSrc(t, `
+define_stack(
+    name = "s",
+    services = {
+        "build": service(
+            task = task(cmd = "go build ./..."),
+            runWhen = "onChange",
+            onChange = ["**/*.go"],
+            ignore = ["**/*_test.go", "vendor"],
+        ),
+    },
+)
+`)
+	r := st.Resources[0]
+	if len(r.OnChange) != 1 || len(r.Ignore) != 2 || r.Ignore[0] != "**/*_test.go" {
+		t.Errorf("onChange/ignore not parsed: onChange=%v ignore=%v", r.OnChange, r.Ignore)
+	}
+}
+
 func TestDepsStringList(t *testing.T) {
 	st := mustLoadSrc(t, `
 define_stack(

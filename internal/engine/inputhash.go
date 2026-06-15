@@ -13,6 +13,11 @@ import (
 	"github.com/guyStrauss/pando/internal/resource"
 )
 
+// alwaysIgnoreDirs are never walked or watched for onChange. .pando holds the
+// daemon's own state.json, which it rewrites constantly — watching it would make
+// every onChange task rebuild in a loop.
+var alwaysIgnoreDirs = map[string]bool{".git": true, "node_modules": true, ".pando": true}
+
 // inputHash digests the files a runWhen=onChange resource declares in OnChange,
 // so the scheduler re-runs it only when those inputs actually change. Empty
 // when nothing matches — the scheduler treats an empty hash as "don't skip".
@@ -22,7 +27,7 @@ func (e *Engine) inputHash(root string, r *resource.Resource) string {
 	}
 	seen := map[string]struct{}{}
 	for _, pattern := range r.OnChange {
-		for _, p := range matchInputs(root, pattern) {
+		for _, p := range matchInputs(root, pattern, r.Ignore) {
 			seen[p] = struct{}{}
 		}
 	}
@@ -46,7 +51,16 @@ func (e *Engine) inputHash(root string, r *resource.Resource) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func matchInputs(root, pattern string) []string {
+func ignored(rel string, ignore []string) bool {
+	for _, pattern := range ignore {
+		if matchGlob(pattern, rel) || matchGlob(pattern, filepath.Base(rel)) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchInputs(root, pattern string, ignore []string) []string {
 	pattern = strings.TrimPrefix(pattern, "./")
 	base, glob := splitGlobBase(pattern)
 
@@ -55,14 +69,17 @@ func matchInputs(root, pattern string) []string {
 		if err != nil {
 			return nil
 		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
 		if d.IsDir() {
-			if name := d.Name(); name == ".git" || name == "node_modules" {
+			if alwaysIgnoreDirs[d.Name()] || ignored(rel, ignore) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
+		if ignored(rel, ignore) {
 			return nil
 		}
 		if glob == "" || matchGlob(glob, strings.TrimPrefix(rel, base+string(filepath.Separator))) || matchGlob(pattern, rel) {

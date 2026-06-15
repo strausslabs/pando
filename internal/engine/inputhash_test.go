@@ -26,6 +26,106 @@ func waitForCount(logs *logbuf.Store, wt, res, substr string, want int) bool {
 	return false
 }
 
+func TestInputHashSkipsVendorDirs(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	root := t.TempDir()
+	for _, d := range []string{"node_modules/pkg", ".git/objects"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, d, "x.go"), []byte("package x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := &resource.Resource{
+		Name: "b", Kind: resource.KindTask,
+		RunWhen: resource.RunOnChange, OnChange: []string{"**/*.go"},
+	}
+	if got := eng.inputHash(root, r); got != "" {
+		t.Errorf("inputHash should skip node_modules/.git and find nothing, got %q", got)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if eng.inputHash(root, r) == "" {
+		t.Error("a real top-level .go should produce a hash")
+	}
+}
+
+func TestInputHashHardIgnoresPandoDir(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".pando"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".pando", "x.go"), []byte("package x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := &resource.Resource{Name: "b", Kind: resource.KindTask, RunWhen: resource.RunOnChange, OnChange: []string{"**/*.go"}}
+
+	before := eng.inputHash(root, r)
+	if err := os.WriteFile(filepath.Join(root, ".pando", "state.json"), []byte(`{"v":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".pando", "x.go"), []byte("package x // changed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if eng.inputHash(root, r) != before {
+		t.Error("changes under .pando must not affect the input hash (would cause a rebuild loop)")
+	}
+}
+
+func TestInputHashHonorsResourceIgnore(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	root := t.TempDir()
+	for _, f := range []string{"main.go", "main_test.go"} {
+		if err := os.WriteFile(filepath.Join(root, f), []byte("package main"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := &resource.Resource{
+		Name: "b", Kind: resource.KindTask, RunWhen: resource.RunOnChange,
+		OnChange: []string{"*.go"},
+		Ignore:   []string{"*_test.go"},
+	}
+	before := eng.inputHash(root, r)
+	if err := os.WriteFile(filepath.Join(root, "main_test.go"), []byte("package main // edited"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if eng.inputHash(root, r) != before {
+		t.Error("editing an ignored file must not change the hash")
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main // edited"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if eng.inputHash(root, r) == before {
+		t.Error("editing a non-ignored file should change the hash")
+	}
+}
+
+func TestOnChangeDirsHonorsIgnore(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"src", "src/vendor", ".pando"} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r := &resource.Resource{
+		Name: "x", Kind: resource.KindTask, RunWhen: resource.RunOnChange,
+		OnChange: []string{"src/**/*.go"},
+		Ignore:   []string{"src/vendor"},
+	}
+	for _, d := range onChangeDirs(r, root) {
+		base := filepath.Base(d)
+		if base == "vendor" || base == ".pando" {
+			t.Errorf("onChangeDirs should not watch ignored/hard-ignored dir %s", d)
+		}
+	}
+}
+
 func TestSplitGlobBase(t *testing.T) {
 	cases := []struct{ pattern, base, glob string }{
 		{"migrations", "migrations", ""},

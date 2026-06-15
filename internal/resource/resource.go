@@ -110,6 +110,7 @@ type Resource struct {
 	Deps       []string         `json:"deps,omitempty"`
 	RunWhen    RunPolicy        `json:"runWhen,omitempty" validate:"omitempty,oneof=once always onChange manual"`
 	OnChange   []string         `json:"onChange,omitempty" validate:"required_if=RunWhen onChange"`
+	Ignore     []string         `json:"ignore,omitempty"`
 	Every      time.Duration    `json:"every,omitempty" validate:"omitempty,min=0"`
 	Shared     bool             `json:"shared,omitempty"`
 	Ready      Probe            `json:"ready,omitempty"`

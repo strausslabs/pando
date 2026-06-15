@@ -47,7 +47,7 @@ func toGo(v starlark.Value) (any, error) {
 var serviceFields = map[string]bool{
 	"deps": true, "every": true, "shared": true, "build": true,
 	"compose": true, "local": true, "task": true, "liveUpdate": true,
-	"hooks": true, "runWhen": true, "onChange": true, "ready": true,
+	"hooks": true, "runWhen": true, "onChange": true, "ignore": true, "ready": true,
 }
 
 func normalizeResource(name string, svc map[string]any) (map[string]any, error) {

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/guyStrauss/pando/internal/resource"
@@ -46,7 +47,7 @@ func onChangeDirs(r *resource.Resource, root string) []string {
 	}
 	seen := map[string]struct{}{}
 	for _, pattern := range r.OnChange {
-		base, glob := splitGlobBase(pattern)
+		base, glob := splitGlobBase(strings.TrimPrefix(pattern, "./"))
 		start := filepath.Join(root, base)
 		if glob == "" {
 			seen[watchDir(start)] = struct{}{}
@@ -56,7 +57,8 @@ func onChangeDirs(r *resource.Resource, root string) []string {
 			if err != nil || !d.IsDir() {
 				return nil
 			}
-			if name := d.Name(); name == ".git" || name == "node_modules" {
+			rel, _ := filepath.Rel(root, path)
+			if alwaysIgnoreDirs[d.Name()] || ignored(rel, r.Ignore) {
 				return filepath.SkipDir
 			}
 			seen[path] = struct{}{}
