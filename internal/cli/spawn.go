@@ -46,7 +46,7 @@ func spawnDaemon(g *globalFlags, gitDir string) (string, error) {
 	}
 	defer func() { _ = logFile.Close() }()
 
-	cmd := exec.Command(self, "daemon", "--config", g.config, "--auto-up")
+	cmd := exec.Command(self, "daemon", "--config", g.config)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}

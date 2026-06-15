@@ -55,10 +55,14 @@ func TestWaitForSocketTimesOutWhenGoneNeverHappens(t *testing.T) {
 	}
 }
 
-func TestDaemonCmdHasAutoUpFlag(t *testing.T) {
+func TestDaemonCmdAutoUpDefaultsOn(t *testing.T) {
 	cmd := daemonCmd(&globalFlags{}, "v-test")
-	if cmd.Flags().Lookup("auto-up") == nil {
-		t.Error("daemon command must expose an --auto-up flag so the detached daemon can auto-up discovered worktrees")
+	f := cmd.Flags().Lookup("auto-up")
+	if f == nil {
+		t.Fatal("daemon command must expose an --auto-up flag")
+	}
+	if f.DefValue != "true" {
+		t.Errorf("auto-up should default on so a discovered worktree comes up without a manual `pando up`, got default %q", f.DefValue)
 	}
 }
 

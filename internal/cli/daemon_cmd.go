@@ -38,7 +38,7 @@ func daemonCmd(g *globalFlags, version string) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&tcpAddr, "ui-addr", "auto", "loopback address for the web UI (\"auto\" = repo-derived port, empty to disable)")
-	cmd.Flags().BoolVar(&autoUp, "auto-up", false, "bring every discovered worktree up automatically")
+	cmd.Flags().BoolVar(&autoUp, "auto-up", true, "bring every discovered worktree up automatically (--auto-up=false to disable)")
 	return cmd
 }
 
