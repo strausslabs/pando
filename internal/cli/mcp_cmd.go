@@ -1,9 +1,9 @@
 package cli
 
 import (
-	"github.com/guyStrauss/pando/internal/mcpserver"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
+	"github.com/strausslabs/pando/internal/mcpserver"
 )
 
 func mcpCmd(g *globalFlags, version string) *cobra.Command {

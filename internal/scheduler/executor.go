@@ -3,7 +3,7 @@ package scheduler
 import (
 	"context"
 
-	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/resource"
 )
 
 type Phase string

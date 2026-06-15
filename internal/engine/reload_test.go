@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/scheduler"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/scheduler"
 )
 
 func stackWith(rs ...*resource.Resource) *resource.Stack {

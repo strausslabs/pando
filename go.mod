@@ -1,4 +1,4 @@
-module github.com/guyStrauss/pando
+module github.com/strausslabs/pando
 
 go 1.25.0
 

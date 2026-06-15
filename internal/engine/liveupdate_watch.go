@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/watcher"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/watcher"
 )
 
 type liveWatcher struct {

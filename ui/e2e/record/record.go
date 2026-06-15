@@ -23,16 +23,16 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/client"
-	"github.com/guyStrauss/pando/internal/daemon"
-	"github.com/guyStrauss/pando/internal/engine"
-	"github.com/guyStrauss/pando/internal/executor"
-	"github.com/guyStrauss/pando/internal/logbuf"
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/scheduler"
-	"github.com/guyStrauss/pando/internal/selfupdate"
-	"github.com/guyStrauss/pando/internal/worktree"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/client"
+	"github.com/strausslabs/pando/internal/daemon"
+	"github.com/strausslabs/pando/internal/engine"
+	"github.com/strausslabs/pando/internal/executor"
+	"github.com/strausslabs/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/scheduler"
+	"github.com/strausslabs/pando/internal/selfupdate"
+	"github.com/strausslabs/pando/internal/worktree"
 )
 
 func main() {

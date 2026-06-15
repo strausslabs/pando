@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/logbuf"
-	"github.com/guyStrauss/pando/internal/resource"
-	"github.com/guyStrauss/pando/internal/scheduler"
+	"github.com/strausslabs/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/scheduler"
 )
 
 func ensureDocker(t *testing.T) {

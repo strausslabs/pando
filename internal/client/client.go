@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/api"
+	"github.com/strausslabs/pando/internal/api"
 )
 
 const base = "http://pando"

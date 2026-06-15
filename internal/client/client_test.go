@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/api"
+	"github.com/strausslabs/pando/internal/api"
 )
 
 // newTestClient serves mux over a real unix socket so client.New's transport

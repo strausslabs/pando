@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/logbuf"
-	"github.com/guyStrauss/pando/internal/selfupdate"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/selfupdate"
 )
 
 var errClosed = errors.New("server closed")

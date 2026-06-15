@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/guyStrauss/pando/internal/dag"
-	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/dag"
+	"github.com/strausslabs/pando/internal/resource"
 )
 
 type NodeState struct {

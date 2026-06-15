@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/resource"
 )
 
 type Node struct {

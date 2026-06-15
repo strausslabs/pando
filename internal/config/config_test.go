@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/resource"
 )
 
 func load(t *testing.T, path string) *resource.Stack {

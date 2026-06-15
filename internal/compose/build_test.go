@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/logbuf"
 )
 
 type capturedLine struct {

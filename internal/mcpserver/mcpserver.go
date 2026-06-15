@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/client"
-	"github.com/guyStrauss/pando/internal/discovery"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/client"
+	"github.com/strausslabs/pando/internal/discovery"
 )
 
 type Deps struct {

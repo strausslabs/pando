@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/guyStrauss/pando/internal/resource"
+	"github.com/strausslabs/pando/internal/resource"
 )
 
 // .pando holds state.json, which the daemon rewrites constantly — watching it would rebuild every onChange task in a loop.

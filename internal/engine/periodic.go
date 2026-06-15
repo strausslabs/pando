@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/logbuf"
+	"github.com/strausslabs/pando/internal/logbuf"
 )
 
 func (e *Engine) startPeriodic(as *activeStack) {

@@ -8,9 +8,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/api"
-	"github.com/guyStrauss/pando/internal/client"
 	"github.com/spf13/cobra"
+	"github.com/strausslabs/pando/internal/api"
+	"github.com/strausslabs/pando/internal/client"
 )
 
 func addWorktreeFlag(cmd *cobra.Command, target *string) {
