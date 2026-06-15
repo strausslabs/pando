@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/guyStrauss/pando/internal/client"
 	"github.com/guyStrauss/pando/internal/compose"
 	"github.com/guyStrauss/pando/internal/config"
 	"github.com/guyStrauss/pando/internal/daemon"
@@ -77,27 +76,12 @@ func stopDaemon(ctx context.Context) error {
 	if err := syscall.Kill(info.PID, syscall.SIGTERM); err != nil {
 		return fmt.Errorf("stop daemon %d: %w", info.PID, err)
 	}
-	if err := waitForSocketGone(ctx, info.Socket, 10*time.Second); err != nil {
+	if err := waitForSocket(ctx, info.Socket, false, 10*time.Second); err != nil {
 		return err
 	}
 	discovery.Remove(info.GitCommonDir)
 	fmt.Printf("pando daemon stopped (pid %d)\n", info.PID)
 	return nil
-}
-
-func waitForSocketGone(ctx context.Context, socket string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	cl := client.New(socket)
-	for time.Now().Before(deadline) {
-		c, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
-		err := cl.Health(c)
-		cancel()
-		if err != nil {
-			return nil
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return fmt.Errorf("daemon did not stop within %s", timeout)
 }
 
 func runDaemon(ctx context.Context, g *globalFlags, version, tcpAddr string, autoUp bool) error {

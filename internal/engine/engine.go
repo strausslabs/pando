@@ -170,6 +170,7 @@ func (e *Engine) newScheduler(slug string, g *dag.Graph, env scheduler.Env, as *
 		Env:       env,
 		OnState:   e.stateHandler(slug, as),
 		WaitReady: e.waitReady,
+		InputHash: func(r *resource.Resource) string { return e.inputHash(as.info.Path, r) },
 	}
 	if slug != sharedSlug {
 		opts.ExternalReady = e.sharedReady
@@ -230,14 +231,14 @@ func (e *Engine) Reload(ctx context.Context, slug string, next *resource.Stack) 
 	newAS.sched.Seed(seed)
 
 	as.stopPeriodic()
-	as.stopLiveUpdate()
+	as.stopWatchers()
 
 	e.mu.Lock()
 	e.stacks[slug] = newAS
 	e.mu.Unlock()
 
 	e.startPeriodic(newAS)
-	e.startLiveUpdate(newAS)
+	e.startWatchers(newAS)
 
 	dirty := append(append([]string{}, diff.Added...), diff.Changed...)
 	if len(dirty) == 0 {
@@ -257,7 +258,7 @@ func (e *Engine) Deregister(ctx context.Context, slug string) error {
 		return nil
 	}
 	as.stopPeriodic()
-	as.stopLiveUpdate()
+	as.stopWatchers()
 	return as.sched.Down(ctx)
 }
 
@@ -337,7 +338,7 @@ func (e *Engine) Up(ctx context.Context, slug string, force bool) error {
 	}
 	err = as.sched.Up(ctx)
 	e.startPeriodic(as)
-	e.startLiveUpdate(as)
+	e.startWatchers(as)
 	return err
 }
 
@@ -347,7 +348,7 @@ func (e *Engine) Down(ctx context.Context, slug string) error {
 		return err
 	}
 	as.stopPeriodic()
-	as.stopLiveUpdate()
+	as.stopWatchers()
 	return as.sched.Down(ctx)
 }
 

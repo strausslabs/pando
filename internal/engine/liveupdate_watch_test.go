@@ -57,7 +57,7 @@ func TestStartLiveUpdateNoStepsIsNoop(t *testing.T) {
 		env:   scheduler.Env{Worktree: "main"},
 		stack: &resource.Stack{Resources: []*resource.Resource{{Name: "api", Kind: resource.KindLocal}}},
 	}
-	eng.startLiveUpdate(as)
+	eng.startWatchers(as)
 	as.mu.Lock()
 	live := as.live
 	as.mu.Unlock()
@@ -79,14 +79,14 @@ func TestStartLiveUpdateWatchesAndStops(t *testing.T) {
 			LiveUpdate: []resource.LiveUpdateStep{{Run: "true"}},
 		}}},
 	}
-	eng.startLiveUpdate(as)
+	eng.startWatchers(as)
 	as.mu.Lock()
 	live := as.live
 	as.mu.Unlock()
 	if live == nil {
 		t.Fatal("startLiveUpdate should create a watcher when a resource has live-update steps")
 	}
-	as.stopLiveUpdate()
+	as.stopWatchers()
 	as.mu.Lock()
 	stopped := as.live
 	as.mu.Unlock()

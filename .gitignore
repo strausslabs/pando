@@ -31,3 +31,6 @@ internal/web/dist/*
 .idea/
 .vscode/
 *.swp
+
+# Claude Code local settings + agent worktrees
+.claude/
