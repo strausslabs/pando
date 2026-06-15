@@ -2,6 +2,7 @@ package logbuf
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -147,10 +148,6 @@ func (s *Store) Resources() []ResourceRef {
 }
 
 func splitKey(key string) [2]string {
-	for i := 0; i < len(key); i++ {
-		if key[i] == 0 {
-			return [2]string{key[:i], key[i+1:]}
-		}
-	}
-	return [2]string{key, ""}
+	wt, res, _ := strings.Cut(key, "\x00")
+	return [2]string{wt, res}
 }

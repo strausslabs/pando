@@ -194,6 +194,46 @@ func texts(lines []Line) []string {
 	return out
 }
 
+func TestStoreText(t *testing.T) {
+	s := NewStore(10)
+	mk := func() Line { return Line{Time: time.Unix(1, 0)} }
+	s.Append("main", "api", Stdout, "first", mk)
+	s.Append("main", "api", Stderr, "second", mk)
+	got := s.Text("main", "api")
+	if len(got) != 2 || got[0] != "first" || got[1] != "second" {
+		t.Errorf("Text = %v, want [first second]", got)
+	}
+	if other := s.Text("main", "absent"); len(other) != 0 {
+		t.Errorf("Text for unknown resource should be empty, got %v", other)
+	}
+}
+
+func TestStorePublishPhase(t *testing.T) {
+	s := NewStore(10)
+	_, ch := s.Subscribe(4)
+	s.PublishPhase("feat", "web", "healthy")
+	select {
+	case e := <-ch:
+		if e.Kind != EventPhase || e.Worktree != "feat" || e.Resource != "web" || e.Phase != "healthy" {
+			t.Errorf("bad phase event: %+v", e)
+		}
+		if e.Line != nil {
+			t.Errorf("phase event should carry no line, got %+v", e.Line)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no phase event received")
+	}
+}
+
+func TestSplitKey(t *testing.T) {
+	if got := splitKey("main\x00api"); got != [2]string{"main", "api"} {
+		t.Errorf("splitKey = %v, want [main api]", got)
+	}
+	if got := splitKey("main\x00"); got != [2]string{"main", ""} {
+		t.Errorf("splitKey empty resource = %v", got)
+	}
+}
+
 // TestStoreGlobalSeqUniqueAcrossResources is the whole point of moving the seq
 // counter to the Store: interleaving appends across two resources (in two
 // worktrees) must hand out globally unique Seq values so the merged

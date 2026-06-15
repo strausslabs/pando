@@ -149,3 +149,45 @@ func TestStackGet(t *testing.T) {
 		t.Error("should not find missing")
 	}
 }
+
+func TestDedupe(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"nil", nil, nil},
+		{"single", []string{"a"}, []string{"a"}},
+		{"duplicates", []string{"a", "a", "b", "a"}, []string{"a", "b"}},
+		{"already unique", []string{"a", "b", "c"}, []string{"a", "b", "c"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := dedupe(tt.in)
+			if len(got) != len(tt.want) {
+				t.Fatalf("dedupe(%v) = %v, want %v", tt.in, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("dedupe(%v) = %v, want %v", tt.in, got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestAllDeps(t *testing.T) {
+	plain := &Resource{Deps: []string{"a", "b"}}
+	if got := plain.AllDeps(); len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Errorf("AllDeps without compose = %v, want [a b]", got)
+	}
+
+	withCompose := &Resource{
+		Deps:    []string{"a", "b"},
+		Compose: &ComposeSpec{DependsOn: []string{"b", "c"}},
+	}
+	got := withCompose.AllDeps()
+	if len(got) != 3 || got[0] != "a" || got[1] != "b" || got[2] != "c" {
+		t.Errorf("AllDeps merges+dedupes = %v, want [a b c]", got)
+	}
+}
