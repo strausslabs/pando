@@ -12,7 +12,6 @@ import (
 	"go.starlark.net/syntax"
 )
 
-// DefaultConfigName is the Starlark config file Pando looks for in a worktree.
 const DefaultConfigName = "pando.star"
 
 type Loader struct{}
@@ -38,9 +37,6 @@ func (l *Loader) LoadFile(ctx context.Context, path string) (*resource.Stack, er
 	return stack, nil
 }
 
-// eval runs a Starlark config and returns the normalized stack as Go data
-// (map/slice/scalar) ready to marshal into resource.Stack JSON. The config must
-// call define_stack(...) exactly once.
 func eval(ctx context.Context, path string, src []byte) (any, error) {
 	h := &holder{}
 	thread := &starlark.Thread{Name: "pando-config"}

@@ -6,6 +6,12 @@ import (
 	"encoding/json"
 )
 
+type Diff struct {
+	Added   []string
+	Removed []string
+	Changed []string
+}
+
 func (r *Resource) Fingerprint() string {
 	b, err := json.Marshal(r)
 	if err != nil {
@@ -13,12 +19,6 @@ func (r *Resource) Fingerprint() string {
 	}
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
-}
-
-type Diff struct {
-	Added   []string
-	Removed []string
-	Changed []string
 }
 
 func DiffStacks(old, next *Stack) Diff {

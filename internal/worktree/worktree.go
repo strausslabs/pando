@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
+
 type Worktree struct {
 	Path   string `json:"path"`
 	Branch string `json:"branch"`
@@ -79,8 +81,6 @@ func parsePorcelain(out string) []Worktree {
 	flush()
 	return wts
 }
-
-var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
 
 func Slug(branch, path string) string {
 	base := branch

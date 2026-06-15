@@ -52,9 +52,6 @@ func Execute(version string) error {
 
 func ctx() context.Context { return context.Background() }
 
-// newClient builds a client against the right daemon socket: an explicit
-// --socket wins, otherwise the per-repo socket discovered from the current git
-// repo.
 func newClient(g *globalFlags) (*client.Client, error) {
 	if g.socket != "" {
 		return client.New(g.socket), nil

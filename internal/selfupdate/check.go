@@ -10,9 +10,9 @@ import (
 	"time"
 )
 
-var releasesURL = "https://api.github.com/repos/strausslabs/pando/releases/latest"
-
 const cacheTTL = 24 * time.Hour
+
+var releasesURL = "https://api.github.com/repos/strausslabs/pando/releases/latest"
 
 type Status struct {
 	Current   string `json:"current"`

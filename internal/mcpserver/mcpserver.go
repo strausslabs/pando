@@ -12,14 +12,11 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Deps lets tests inject a fake daemon and resolver; production wires the real
-// per-repo discovery and unix-socket client.
 type Deps struct {
 	Resolve func(ctx context.Context) (discovery.Info, bool, bool)
 	Dial    func(socket string) Daemon
 }
 
-// Daemon is the slice of the daemon client the tools use.
 type Daemon interface {
 	Status(ctx context.Context) ([]api.WorktreeStatus, error)
 	Version(ctx context.Context) (api.UpdateStatus, error)
@@ -38,8 +35,6 @@ func defaultDeps() Deps {
 	}
 }
 
-// NewServer builds the Pando MCP server. version is reported in the MCP
-// handshake; deps is nil in production.
 func NewServer(version string, deps *Deps) *mcp.Server {
 	d := defaultDeps()
 	if deps != nil {
@@ -96,8 +91,6 @@ func register(s *mcp.Server, d Deps) {
 	}, restartTool(d))
 }
 
-// connect resolves the per-repo daemon and dials it, or returns a tool-level
-// error result describing how to start Pando.
 func (d Deps) connect(ctx context.Context) (Daemon, *mcp.CallToolResult) {
 	info, found, running := d.Resolve(ctx)
 	switch {
@@ -345,8 +338,6 @@ func restartTool(d Deps) mcp.ToolHandlerFor[RestartIn, OKOut] {
 	}
 }
 
-// resolveWorktree mirrors the CLI: an explicit slug wins, else the only
-// registered worktree, else an error listing the choices.
 func resolveWorktree(ctx context.Context, cl Daemon, slug string) (string, *mcp.CallToolResult) {
 	if slug != "" {
 		return slug, nil

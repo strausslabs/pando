@@ -17,6 +17,8 @@ import (
 	"github.com/guyStrauss/pando/internal/worktree"
 )
 
+const configResource = "pando.config"
+
 type Execer interface {
 	Exec(ctx context.Context, worktree, resource string, cmd []string, env scheduler.Env) (api.ExecResult, error)
 }
@@ -76,8 +78,6 @@ func New(cfg Config) *Engine {
 	}
 }
 
-const configResource = "pando.config"
-
 func (e *Engine) ReportConfigError(slug, branch, msg string) {
 	e.mu.Lock()
 	prev, had := e.configErrs[slug]
@@ -126,11 +126,7 @@ func (e *Engine) Register(wt worktree.Worktree, stack *resource.Stack) error {
 	return nil
 }
 
-// compile turns a full (possibly shared-bearing) stack into a ready activeStack:
-// shared singletons are hoisted into the _shared stack, the worktree keeps only
-// its own resources with shared deps wired as external gates, and ports are
-// allocated. Register and Reload both go through here so their handling of
-// shared resources can never drift.
+// Register and Reload both funnel through compile so shared-resource handling can't drift.
 func (e *Engine) compile(info api.WorktreeInfo, stack *resource.Stack) (*activeStack, error) {
 	sharedRes, localRes := partitionShared(stack)
 	if err := e.mergeShared(sharedRes); err != nil {
