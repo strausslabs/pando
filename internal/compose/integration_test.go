@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -89,8 +90,67 @@ func TestComposeLifecycleReal(t *testing.T) {
 		t.Errorf("expected exit 7, got %d", fail.ExitCode)
 	}
 
+	if usage, ok := b.Sample(ctx, r, env); !ok {
+		t.Error("Sample should report stats for a running container")
+	} else if usage.MemBytes == 0 {
+		t.Error("Sample returned zero memory for a running container")
+	}
+
 	if err := b.Stop(ctx, r, env); err != nil {
 		t.Errorf("stop: %v", err)
+	}
+}
+
+func TestComposeBuildAndSyncReal(t *testing.T) {
+	dockerOrSkip(t)
+
+	dir := t.TempDir()
+	mustWrite(t, filepath.Join(dir, "Dockerfile"),
+		"FROM ghcr.io/linuxcontainers/alpine:3.20\nRUN echo built > /built.txt\nCMD [\"sleep\",\"3600\"]\n")
+
+	logs := logbuf.NewStore(1000)
+	b, err := New(logs, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := scheduler.Env{Worktree: "itest", Project: "pando-build-itest", Ports: map[string]int{}, Vars: map[string]string{}}
+	r := &resource.Resource{
+		Name: "built", Kind: resource.KindCompose,
+		Build: &resource.Build{Context: dir},
+	}
+	ctx := context.Background()
+
+	if err := b.Start(ctx, r, env, nopReporter{}); err != nil {
+		t.Fatalf("start (build): %v", err)
+	}
+	defer func() { _ = b.Stop(ctx, r, env) }()
+
+	res, err := b.Exec(ctx, "itest", "built", []string{"cat", "/built.txt"}, env)
+	if err != nil {
+		t.Fatalf("exec after build: %v", err)
+	}
+	if !strings.Contains(res.Stdout, "built") {
+		t.Errorf("built image missing RUN artifact: %q", res.Stdout)
+	}
+
+	host := t.TempDir()
+	mustWrite(t, filepath.Join(host, "synced.txt"), "from-host")
+	if err := b.Sync(ctx, r, env, filepath.Join(host, "synced.txt"), "/tmp/synced.txt"); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	got, err := b.Exec(ctx, "itest", "built", []string{"cat", "/tmp/synced.txt"}, env)
+	if err != nil {
+		t.Fatalf("exec after sync: %v", err)
+	}
+	if !strings.Contains(got.Stdout, "from-host") {
+		t.Errorf("synced file content wrong: %q", got.Stdout)
+	}
+}
+
+func mustWrite(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 

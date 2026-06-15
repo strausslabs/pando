@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/guyStrauss/pando/internal/resource"
 	"github.com/guyStrauss/pando/internal/scheduler"
@@ -239,4 +240,109 @@ func TestStartFailsFastWhenUnreachable(t *testing.T) {
 	if !strings.Contains(err.Error(), "db") || !strings.Contains(err.Error(), "needs Docker") {
 		t.Errorf("error should name resource and docker requirement: %v", err)
 	}
+}
+
+func TestReadEnvFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".env")
+	content := "# comment\nFOO=bar\n\n  BAZ=qux  \nNOEQUALS\nWITH=eq= in=value\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := readEnvFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"FOO=bar", "BAZ=qux", "WITH=eq= in=value"}
+	if len(got) != len(want) {
+		t.Fatalf("readEnvFile = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("line %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestReadEnvFileMissing(t *testing.T) {
+	if _, err := readEnvFile(filepath.Join(t.TempDir(), "nope")); err == nil {
+		t.Error("missing env file should error")
+	}
+}
+
+func TestContainerConfigEnvFileVolumesHealthcheck(t *testing.T) {
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	if err := os.WriteFile(envPath, []byte("FROMFILE=1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := &resource.Resource{
+		Name: "api", Kind: resource.KindCompose,
+		Compose: &resource.ComposeSpec{
+			Image:     "alpine",
+			EnvFile:   []string{envPath},
+			Env:       map[string]string{"INLINE": "yes"},
+			Volumes:   []string{"/host:/container"},
+			Command:   []string{"sleep", "1"},
+			CPUs:      1.5,
+			PidsLimit: 64,
+			Restart:   "on-failure",
+			Healthcheck: &resource.Healthcheck{
+				Test:     []string{"curl", "localhost"},
+				Interval: time.Second,
+				Retries:  3,
+			},
+		},
+	}
+	cfg, hostCfg, err := containerConfig(r, env())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsStr(cfg.Env, "FROMFILE=1") || !containsStr(cfg.Env, "INLINE=yes") {
+		t.Errorf("env not merged: %v", cfg.Env)
+	}
+	if len(cfg.Cmd) != 2 {
+		t.Errorf("command not set: %v", cfg.Cmd)
+	}
+	if len(hostCfg.Binds) != 1 || hostCfg.Binds[0] != "/host:/container" {
+		t.Errorf("volumes not bound: %v", hostCfg.Binds)
+	}
+	if hostCfg.NanoCPUs != int64(1.5*1e9) {
+		t.Errorf("cpus wrong: %d", hostCfg.NanoCPUs)
+	}
+	if hostCfg.PidsLimit == nil || *hostCfg.PidsLimit != 64 {
+		t.Errorf("pids limit wrong: %v", hostCfg.PidsLimit)
+	}
+	if string(hostCfg.RestartPolicy.Name) != "on-failure" {
+		t.Errorf("restart policy wrong: %v", hostCfg.RestartPolicy.Name)
+	}
+	if cfg.Healthcheck == nil || len(cfg.Healthcheck.Test) != 3 || cfg.Healthcheck.Test[0] != "CMD" {
+		t.Errorf("healthcheck not built with CMD prefix: %+v", cfg.Healthcheck)
+	}
+}
+
+func TestContainerConfigSingleHealthcheckUsesShell(t *testing.T) {
+	r := &resource.Resource{
+		Name: "api", Kind: resource.KindCompose,
+		Compose: &resource.ComposeSpec{
+			Image:       "alpine",
+			Healthcheck: &resource.Healthcheck{Test: []string{"pgrep x"}},
+		},
+	}
+	cfg, _, err := containerConfig(r, env())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Healthcheck.Test[0] != "CMD-SHELL" {
+		t.Errorf("single-element test should use CMD-SHELL, got %v", cfg.Healthcheck.Test)
+	}
+}
+
+func containsStr(ss []string, want string) bool {
+	for _, s := range ss {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }
