@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -167,7 +168,10 @@ func runDaemon(ctx context.Context, g *globalFlags, version, tcpAddr string, aut
 	if err != nil {
 		return err
 	}
+	var bg sync.WaitGroup
+	bg.Add(1)
 	go func() {
+		defer bg.Done()
 		if err := rec.Run(ctx); err != nil {
 			fmt.Fprintf(os.Stderr, "reconciler: %v\n", err)
 		}
@@ -178,7 +182,9 @@ func runDaemon(ctx context.Context, g *globalFlags, version, tcpAddr string, aut
 		srv.MountUI(ui)
 	}
 
+	bg.Add(1)
 	go func() {
+		defer bg.Done()
 		st := selfupdate.Check(ctx, version, filepath.Join(stateDir, "update.json"), time.Now())
 		srv.SetUpdate(st)
 		if st.Available {
@@ -187,7 +193,9 @@ func runDaemon(ctx context.Context, g *globalFlags, version, tcpAddr string, aut
 	}()
 
 	if tcpAddr != "" {
+		bg.Add(1)
 		go func() {
+			defer bg.Done()
 			if err := srv.ServeTCP(ctx, tcpAddr); err != nil {
 				fmt.Fprintf(os.Stderr, "ui server: %v\n", err)
 			}
@@ -212,5 +220,6 @@ func runDaemon(ctx context.Context, g *globalFlags, version, tcpAddr string, aut
 	shutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	eng.Shutdown(shutCtx)
+	bg.Wait()
 	return err
 }

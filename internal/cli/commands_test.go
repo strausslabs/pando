@@ -116,6 +116,70 @@ func TestPrintStatus(t *testing.T) {
 	}
 }
 
+func TestPrintStatusShowsConfigError(t *testing.T) {
+	st := []api.WorktreeStatus{{
+		Worktree: "feat",
+		Error:    "evaluate config: pando.star:3:1: undefined: srvice",
+	}}
+	var out, errOut string
+	errOut = captureStderr(t, func() {
+		out = captureStdout(t, func() { printStatus(st) })
+	})
+	if !strings.Contains(out, "config error") {
+		t.Errorf("status table should flag the config error row:\n%s", out)
+	}
+	if !strings.Contains(errOut, "undefined: srvice") {
+		t.Errorf("stderr should carry the config error detail:\n%s", errOut)
+	}
+}
+
+func TestWorktreeIn(t *testing.T) {
+	st := []api.WorktreeStatus{
+		{Worktree: "a"},
+		{Worktree: "b", Resources: []api.ResourceStatus{{Name: "x"}}},
+	}
+	got := worktreeIn(st, "b")
+	if len(got) != 1 || got[0].Worktree != "b" {
+		t.Fatalf("worktreeIn should isolate the named worktree, got %+v", got)
+	}
+	if worktreeIn(st, "missing") != nil {
+		t.Error("worktreeIn should return nil for an unknown worktree")
+	}
+}
+
+func TestUpPrintsConfirmationAndResources(t *testing.T) {
+	ops := &stubOps{}
+	g := &globalFlags{socket: liveDaemon(t, ops)}
+	out := captureStdout(t, func() {
+		if err := runCmd(upCmd(g), "--worktree", "main"); err != nil {
+			t.Fatalf("up: %v", err)
+		}
+	})
+	if !strings.Contains(out, "main is up") {
+		t.Errorf("up should confirm the worktree is up:\n%s", out)
+	}
+	if !strings.Contains(out, "api") {
+		t.Errorf("up should print the worktree's resources:\n%s", out)
+	}
+}
+
+func TestUpJSONPrintsOnlyTargetWorktree(t *testing.T) {
+	ops := &stubOps{}
+	g := &globalFlags{socket: liveDaemon(t, ops), json: true}
+	out := captureStdout(t, func() {
+		if err := runCmd(upCmd(g), "--worktree", "main"); err != nil {
+			t.Fatalf("up --json: %v", err)
+		}
+	})
+	var got []api.WorktreeStatus
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("up --json emitted invalid JSON: %v\n%s", err, out)
+	}
+	if len(got) != 1 || got[0].Worktree != "main" {
+		t.Errorf("up --json should emit only the target worktree, got %+v", got)
+	}
+}
+
 func worktreeDaemon(t *testing.T, wts []api.WorktreeInfo) *client.Client {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "cli")

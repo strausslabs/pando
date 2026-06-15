@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -50,6 +52,66 @@ func TestWaitForSocketTimesOutWhenGoneNeverHappens(t *testing.T) {
 	sock := liveDaemon(t, &stubOps{})
 	if err := waitForSocket(context.Background(), sock, false, 300*time.Millisecond); err == nil {
 		t.Fatal("waitForSocket(want=false) should time out while the daemon stays reachable")
+	}
+}
+
+func TestDaemonCmdHasAutoUpFlag(t *testing.T) {
+	cmd := daemonCmd(&globalFlags{}, "v-test")
+	if cmd.Flags().Lookup("auto-up") == nil {
+		t.Error("daemon command must expose an --auto-up flag so the detached daemon can auto-up discovered worktrees")
+	}
+}
+
+func TestNewClientWarnsOnCustomConfig(t *testing.T) {
+	g := &globalFlags{socket: liveDaemon(t, &stubOps{}), config: "custom.star"}
+	out := captureStderr(t, func() {
+		if _, err := newClient(g); err != nil {
+			t.Fatalf("newClient: %v", err)
+		}
+	})
+	if !strings.Contains(out, "custom.star") || !strings.Contains(out, "ignored") {
+		t.Errorf("newClient should warn that --config is ignored for a running daemon:\n%s", out)
+	}
+}
+
+func TestNewClientNoWarnOnDefaultConfig(t *testing.T) {
+	g := &globalFlags{socket: liveDaemon(t, &stubOps{}), config: defaultConfig}
+	out := captureStderr(t, func() {
+		if _, err := newClient(g); err != nil {
+			t.Fatalf("newClient: %v", err)
+		}
+	})
+	if strings.Contains(out, "ignored") {
+		t.Errorf("default config should not warn:\n%s", out)
+	}
+}
+
+func TestExecuteJSONErrorEmitsJSON(t *testing.T) {
+	runtimeDir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
+	t.Chdir(t.TempDir())
+
+	var err error
+	out := captureStdout(t, func() {
+		savedArgs := os.Args
+		os.Args = []string{"pando", "--json", "status"}
+		defer func() { os.Args = savedArgs }()
+		err = Execute("v-test")
+	})
+
+	if err == nil {
+		t.Fatal("status with no daemon should error")
+	}
+	var handled Handled
+	if !errors.As(err, &handled) {
+		t.Errorf("a JSON-printed error should be wrapped in Handled, got %T", err)
+	}
+	var got map[string]string
+	if jerr := json.Unmarshal([]byte(out), &got); jerr != nil {
+		t.Fatalf("--json error should be valid JSON: %v\n%s", jerr, out)
+	}
+	if got["error"] == "" {
+		t.Errorf("--json error JSON should carry an error field:\n%s", out)
 	}
 }
 
