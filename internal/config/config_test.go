@@ -95,8 +95,8 @@ func TestLoadParsesLiveUpdate(t *testing.T) {
 	if api.LiveUpdate[1].Run == "" || len(api.LiveUpdate[1].Trigger) != 1 {
 		t.Errorf("second step should be a run with trigger: %+v", api.LiveUpdate[1])
 	}
-	if !api.LiveUpdate[2].Restart {
-		t.Errorf("third step should be restart: %+v", api.LiveUpdate[2])
+	if !api.LiveUpdate[2].RestartContainer {
+		t.Errorf("third step should be restart_container: %+v", api.LiveUpdate[2])
 	}
 }
 

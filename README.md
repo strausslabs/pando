@@ -87,8 +87,9 @@ define_stack(
         "db": service(compose = compose(image = "postgres:16", ports = ["$PORT_db:5432"])),
         "migrate": service(task = task(cmd = "./migrate"), deps = ["db"], runWhen = "once"),
 
-        # Build the image from a Dockerfile, then run it. Live-update the source
-        # into the container on change instead of rebuilding from scratch.
+        # Build the image from a Dockerfile, then run it. Live-update copies the
+        # source into the running container on change — no rebuild, no recreate.
+        # (The app reloads it itself, e.g. uvicorn --reload / flask debug.)
         "api": service(
             build = build(
                 context = "./api",            # build context
@@ -99,13 +100,16 @@ define_stack(
             compose = compose(ports = ["$PORT_api:8000"], dependsOn = ["db"]),
             deps = ["migrate"],
             ready = http_get("http://localhost:$PORT_api/health", timeout = "30s"),
-            liveUpdate = [sync("./api/src", "/app/src"), run("pip install -r requirements.txt"), restart()],
+            liveUpdate = [
+                sync("./api/src", "/app/src"),  # hot-copy source into the container
+                run("pip install -r requirements.txt", trigger = ["./api/requirements.txt"]),  # only when deps change
+                restart_container(),            # bounce the entrypoint in place — synced files survive
+            ],
         ),
 
         # A host process that restarts whenever its sources change.
         "worker": service(
             local = cmd("go run ./cmd/worker", watch = ["**/*.go"]),
-            liveUpdate = [restart()],
         ),
 
         # Rerun a task only when matching files actually change — ignore the noise.

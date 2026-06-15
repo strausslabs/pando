@@ -41,3 +41,31 @@ func TestLiveSyncUnknownKind(t *testing.T) {
 		t.Error("liveSync should error when no executor is registered for the kind")
 	}
 }
+
+type fakeRestarter struct {
+	scheduler.Executor
+	restarted int
+}
+
+func (f *fakeRestarter) RestartContainer(context.Context, *resource.Resource, scheduler.Env) error {
+	f.restarted++
+	return nil
+}
+
+func TestLiveRestartUsesRestarterForCompose(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	fr := &fakeRestarter{}
+	eng.cfg.Executors[resource.KindCompose] = fr
+	r := &resource.Resource{Name: "api", Kind: resource.KindCompose}
+	as := &activeStack{
+		info: api.WorktreeInfo{Path: t.TempDir(), Slug: "main"},
+		env:  scheduler.Env{Worktree: "main", Project: "pando"},
+	}
+
+	if err := eng.liveRestart(context.Background(), as, r); err != nil {
+		t.Fatalf("liveRestart: %v", err)
+	}
+	if fr.restarted != 1 {
+		t.Errorf("compose live-update restart should bounce the container in place via RestartContainer, calls=%d", fr.restarted)
+	}
+}

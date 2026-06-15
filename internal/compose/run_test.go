@@ -18,8 +18,10 @@ import (
 
 type fakeDockerCli struct {
 	client.APIClient
-	startErr error
-	removed  []string
+	startErr   error
+	removed    []string
+	restarted  []string
+	restartErr error
 }
 
 func (f *fakeDockerCli) ImageInspectWithRaw(context.Context, string) (types.ImageInspect, []byte, error) {
@@ -37,6 +39,10 @@ func (f *fakeDockerCli) ContainerStop(context.Context, string, container.StopOpt
 func (f *fakeDockerCli) ContainerRemove(_ context.Context, name string, _ container.RemoveOptions) error {
 	f.removed = append(f.removed, name)
 	return nil
+}
+func (f *fakeDockerCli) ContainerRestart(_ context.Context, name string, _ container.StopOptions) error {
+	f.restarted = append(f.restarted, name)
+	return f.restartErr
 }
 
 func TestRunRemovesContainerWhenStartFails(t *testing.T) {
@@ -58,5 +64,35 @@ func TestRunRemovesContainerWhenStartFails(t *testing.T) {
 	}
 	if got < 2 {
 		t.Errorf("expected cleanup removal after failed start; removed %v", fake.removed)
+	}
+}
+
+func TestRestartContainerBouncesInPlace(t *testing.T) {
+	fake := &fakeDockerCli{}
+	b := &Backend{cli: fake, sink: &fakeSink{}, clock: func() time.Time { return time.Unix(1, 0) }}
+	r := &resource.Resource{Name: "api", Kind: resource.KindCompose, Compose: &resource.ComposeSpec{Image: "alpine"}}
+	env := scheduler.Env{Worktree: "main", Project: "pando-main", Ports: map[string]int{}, Vars: map[string]string{}}
+
+	if err := b.RestartContainer(context.Background(), r, env); err != nil {
+		t.Fatalf("RestartContainer: %v", err)
+	}
+
+	want := containerName(env.Project, r.Name)
+	if len(fake.restarted) != 1 || fake.restarted[0] != want {
+		t.Errorf("RestartContainer should restart the same container in place, got %v", fake.restarted)
+	}
+	if len(fake.removed) != 0 {
+		t.Errorf("RestartContainer must NOT remove/recreate the container (would drop synced files), removed %v", fake.removed)
+	}
+}
+
+func TestRestartContainerPropagatesError(t *testing.T) {
+	fake := &fakeDockerCli{restartErr: fmt.Errorf("no such container")}
+	b := &Backend{cli: fake, sink: &fakeSink{}, clock: func() time.Time { return time.Unix(1, 0) }}
+	r := &resource.Resource{Name: "api", Kind: resource.KindCompose, Compose: &resource.ComposeSpec{Image: "alpine"}}
+	env := scheduler.Env{Worktree: "main", Project: "pando-main"}
+
+	if err := b.RestartContainer(context.Background(), r, env); err == nil {
+		t.Fatal("RestartContainer should surface a docker restart error")
 	}
 }

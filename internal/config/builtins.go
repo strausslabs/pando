@@ -21,22 +21,22 @@ type holder struct {
 
 func builtins(h *holder) starlark.StringDict {
 	return starlark.StringDict{
-		"define_stack": starlark.NewBuiltin("define_stack", h.defineStack),
-		"service":      starlark.NewBuiltin("service", makeMapBuiltin("service")),
-		"cmd":          starlark.NewBuiltin("cmd", buildCmd),
-		"task":         starlark.NewBuiltin("task", buildCmd),
-		"compose":      starlark.NewBuiltin("compose", makeMapBuiltin("compose")),
-		"build":        starlark.NewBuiltin("build", makeMapBuiltin("build")),
-		"healthcheck":  starlark.NewBuiltin("healthcheck", makeMapBuiltin("healthcheck")),
-		"http_get":     probeBuiltin("httpGet"),
-		"tcp":          probeBuiltin("tcp"),
-		"log_match":    probeBuiltin("logMatch"),
-		"exit0":        probeBuiltin("exit0"),
-		"sync":         starlark.NewBuiltin("sync", buildSync),
-		"run":          starlark.NewBuiltin("run", buildRun),
-		"restart":      starlark.NewBuiltin("restart", buildRestart),
-		"duration":     starlark.NewBuiltin("duration", durationBuiltin),
-		"bytes":        starlark.NewBuiltin("bytes", bytesBuiltin),
+		"define_stack":      starlark.NewBuiltin("define_stack", h.defineStack),
+		"service":           starlark.NewBuiltin("service", makeMapBuiltin("service")),
+		"cmd":               starlark.NewBuiltin("cmd", buildCmd),
+		"task":              starlark.NewBuiltin("task", buildCmd),
+		"compose":           starlark.NewBuiltin("compose", makeMapBuiltin("compose")),
+		"build":             starlark.NewBuiltin("build", makeMapBuiltin("build")),
+		"healthcheck":       starlark.NewBuiltin("healthcheck", makeMapBuiltin("healthcheck")),
+		"http_get":          probeBuiltin("httpGet"),
+		"tcp":               probeBuiltin("tcp"),
+		"log_match":         probeBuiltin("logMatch"),
+		"exit0":             probeBuiltin("exit0"),
+		"sync":              starlark.NewBuiltin("sync", buildSync),
+		"run":               starlark.NewBuiltin("run", buildRun),
+		"restart_container": starlark.NewBuiltin("restart_container", buildRestartContainer),
+		"duration":          starlark.NewBuiltin("duration", durationBuiltin),
+		"bytes":             starlark.NewBuiltin("bytes", bytesBuiltin),
 	}
 }
 
@@ -111,12 +111,12 @@ func buildRun(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwar
 	return step, nil
 }
 
-func buildRestart(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func buildRestartContainer(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
 		return nil, err
 	}
 	step := starlark.NewDict(1)
-	_ = step.SetKey(starlark.String("restart"), starlark.Bool(true))
+	_ = step.SetKey(starlark.String("restartContainer"), starlark.Bool(true))
 	return step, nil
 }
 

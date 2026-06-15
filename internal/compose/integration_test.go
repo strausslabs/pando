@@ -14,12 +14,10 @@ import (
 	"github.com/guyStrauss/pando/internal/scheduler"
 )
 
-// dockerOrSkip skips when no usable Docker daemon is reachable, so the suite
-// stays green in CI environments without Docker.
-func dockerOrSkip(t *testing.T) {
+func ensureDocker(t *testing.T) {
 	t.Helper()
 	if exec.Command("docker", "info").Run() != nil {
-		t.Skip("docker daemon not available; skipping integration test")
+		t.Fatal("docker daemon not available; this integration test requires Docker")
 	}
 }
 
@@ -35,7 +33,7 @@ func intEnv() scheduler.Env {
 }
 
 func TestComposeLifecycleReal(t *testing.T) {
-	dockerOrSkip(t)
+	ensureDocker(t)
 
 	logs := logbuf.NewStore(1000)
 	b, err := New(logs, time.Now)
@@ -102,7 +100,7 @@ func TestComposeLifecycleReal(t *testing.T) {
 }
 
 func TestComposeBuildAndSyncReal(t *testing.T) {
-	dockerOrSkip(t)
+	ensureDocker(t)
 
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, "Dockerfile"),
@@ -144,6 +142,45 @@ func TestComposeBuildAndSyncReal(t *testing.T) {
 	}
 	if !strings.Contains(got.Stdout, "from-host") {
 		t.Errorf("synced file content wrong: %q", got.Stdout)
+	}
+}
+
+func TestRestartContainerPreservesSyncedFileReal(t *testing.T) {
+	ensureDocker(t)
+
+	logs := logbuf.NewStore(1000)
+	b, err := New(logs, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := scheduler.Env{Worktree: "itest", Project: "pando-restart-itest", Ports: map[string]int{}, Vars: map[string]string{}}
+	r := &resource.Resource{
+		Name: "app", Kind: resource.KindCompose,
+		Compose: &resource.ComposeSpec{Image: "ghcr.io/linuxcontainers/alpine:3.20", Command: []string{"sleep", "3600"}},
+	}
+	ctx := context.Background()
+
+	if err := b.Start(ctx, r, env, nopReporter{}); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer func() { _ = b.Stop(ctx, r, env) }()
+
+	host := t.TempDir()
+	mustWrite(t, filepath.Join(host, "synced.txt"), "live-edit")
+	if err := b.Sync(ctx, r, env, filepath.Join(host, "synced.txt"), "/tmp/synced.txt"); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+
+	if err := b.RestartContainer(ctx, r, env); err != nil {
+		t.Fatalf("restart_container: %v", err)
+	}
+
+	got, err := b.Exec(ctx, "itest", "app", []string{"cat", "/tmp/synced.txt"}, env)
+	if err != nil {
+		t.Fatalf("exec after restart: %v", err)
+	}
+	if !strings.Contains(got.Stdout, "live-edit") {
+		t.Errorf("restart_container dropped the synced file (should survive an in-place restart): %q", got.Stdout)
 	}
 }
 

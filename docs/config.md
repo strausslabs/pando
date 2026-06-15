@@ -159,15 +159,20 @@ In-place updates to a running resource without a full restart — ordered steps:
 |------|-----------|------|
 | `sync` | `sync(local, container)` | Copy `local` path into the container at `container`. |
 | `run` | `run(cmd, trigger?)` | Run `cmd` inside the resource. `trigger` (string or list) scopes it to changes under those paths. |
-| `restart` | `restart()` | Restart the resource. |
+| `restart_container` | `restart_container()` | Restart the entrypoint **in place** (`docker restart` the same container). Files copied in by `sync` survive — a recreate would discard them. For a host process it relaunches the process. |
 
 ```python
 liveUpdate = [
     sync("./api", "/app"),
     run("go build -o /app/server ./cmd/api", trigger = ["./api"]),
-    restart(),
+    restart_container(),
 ]
 ```
+
+`restart_container` restarts the same container rather than recreating it, so
+the source `sync` copied in is still there when the entrypoint comes back. Put
+it last, and only when the process doesn't reload synced files on its own (an
+interpreter with `--reload` needs just `sync`).
 
 ---
 

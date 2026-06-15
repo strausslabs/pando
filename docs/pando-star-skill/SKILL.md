@@ -34,8 +34,8 @@ define_stack(
 
 > **The #1 mistake:** writing `import`. There are no imports. Every helper
 > (`define_stack`, `service`, `cmd`, `task`, `compose`, `build`, `healthcheck`,
-> `http_get`, `tcp`, `log_match`, `exit0`, `sync`, `run`, `restart`, `duration`,
-> `bytes`) is already in scope. Just call it.
+> `http_get`, `tcp`, `log_match`, `exit0`, `sync`, `run`, `restart_container`,
+> `duration`, `bytes`) is already in scope. Just call it.
 
 ---
 
@@ -153,7 +153,9 @@ targets become `local`. Order them with `deps`.
    `ports`, `env`, and probe targets.
 5. **Shared infra?** `shared = True` — brought up once for the whole repo. A
    shared resource may depend **only** on other shared resources.
-6. **Fast container iteration?** `liveUpdate = [sync(...), run(...), restart()]`.
+6. **Fast container iteration?** `liveUpdate = [sync(...), run(...), restart_container()]`.
+   `restart_container()` bounces the entrypoint **in place** so synced files survive
+   (a recreate would drop them); omit it if the process hot-reloads on its own.
 7. **Rerun a task on source change?** `runWhen = "onChange"`, `onChange = [globs]`,
    `ignore = [globs]` for the noise (tests, generated files). Good for build /
    codegen / lint tasks that should fire on save but skip a no-op.
@@ -176,7 +178,7 @@ exit0(timeout?, interval?)
 
 sync(local, container)                # liveUpdate: copy files in
 run(cmd, trigger?)                     # liveUpdate: run a command (trigger scopes it)
-restart()                              # liveUpdate: restart the resource
+restart_container()                    # liveUpdate: restart entrypoint in place (synced files survive)
 
 duration("30s")  bytes("256m")        # explicit coercion; strings also work inline
 ```

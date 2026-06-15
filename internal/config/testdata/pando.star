@@ -25,7 +25,7 @@ define_stack(
             liveUpdate = [
                 sync("./api/src", "/app/src"),
                 run("pip install -r requirements.txt", trigger = "requirements.txt"),
-                restart(),
+                restart_container(),
             ],
         ),
         "frontend": service(
