@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/guyStrauss/pando/internal/resource"
 	"github.com/guyStrauss/pando/internal/worktree"
@@ -263,5 +264,75 @@ func TestBrokenConfigDoesNotDeregister(t *testing.T) {
 
 	if !eng.isRegistered("main") {
 		t.Error("broken config reload must keep the running stack registered")
+	}
+}
+
+func TestRunReconcilesThenStopsOnCancel(t *testing.T) {
+	eng := newFakeEngine()
+	lister := &fakeLister{}
+	lister.set([]worktree.Worktree{wtree("main")})
+	loader := &fakeLoader{}
+	r, err := NewReconciler(eng, loader, lister, "", Options{PollEvery: 20 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- r.Run(ctx) }()
+
+	deadline := time.After(3 * time.Second)
+	for !eng.isRegistered("main") {
+		select {
+		case <-deadline:
+			cancel()
+			t.Fatal("Run never registered the worktree")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Run returned %v, want nil on cancel", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run did not stop after cancel")
+	}
+}
+
+func TestOnFireGitKeyReconciles(t *testing.T) {
+	eng := newFakeEngine()
+	lister := &fakeLister{}
+	lister.set([]worktree.Worktree{wtree("main")})
+	r := newReconciler(t, eng, &fakeLoader{}, lister)
+
+	r.onFire(gitWorktreesKey, nil)
+	if !eng.isRegistered("main") {
+		t.Error("git-worktrees fire should trigger a reconcile that registers the worktree")
+	}
+}
+
+func TestOnFireConfigKeyReloads(t *testing.T) {
+	eng := newFakeEngine()
+	lister := &fakeLister{}
+	lister.set([]worktree.Worktree{wtree("main")})
+	loader := &fakeLoader{}
+	r := newReconciler(t, eng, loader, lister)
+	r.reconcileWorktrees(context.Background())
+
+	before := eng.reloads["main"]
+	r.onFire("cfg:main", nil)
+	if eng.reloads["main"] != before+1 {
+		t.Errorf("config fire should reload the worktree once; reloads %d -> %d", before, eng.reloads["main"])
+	}
+}
+
+func TestOnFireUnknownKeyNoops(t *testing.T) {
+	eng := newFakeEngine()
+	r := newReconciler(t, eng, &fakeLoader{}, &fakeLister{})
+	r.onFire("cfg:ghost", nil) // not in configOf
+	if len(eng.deregisters) != 0 || len(eng.registered) != 0 {
+		t.Error("unknown config key should be a no-op")
 	}
 }

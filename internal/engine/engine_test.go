@@ -550,3 +550,76 @@ func countLines(logs *logbuf.Store, wt, res, substr string) int {
 	}
 	return n
 }
+
+func TestEngineShutdownStopsAllWorktrees(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	if err := eng.Register(wt(), demoStack()); err != nil {
+		t.Fatal(err)
+	}
+	if err := eng.Register(wt2(), demoStack()); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := eng.Up(ctx, "main", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := eng.Up(ctx, "feat", false); err != nil {
+		t.Fatal(err)
+	}
+	eng.Shutdown(ctx)
+
+	st, err := eng.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ws := range st {
+		for _, r := range ws.Resources {
+			if r.Phase == string(scheduler.PhaseRunning) {
+				t.Errorf("%s/%s still running after Shutdown", ws.Worktree, r.Name)
+			}
+		}
+	}
+}
+
+func TestEngineRebuildAndTriggerDelegateToRestart(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	if err := eng.Register(wt(), demoStack()); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := eng.Up(ctx, "main", false); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = eng.Down(ctx, "main") }()
+
+	if err := eng.Rebuild(ctx, "main", "setup"); err != nil {
+		t.Errorf("rebuild: %v", err)
+	}
+	if err := eng.Trigger(ctx, "main", "setup"); err != nil {
+		t.Errorf("trigger: %v", err)
+	}
+	if err := eng.Rebuild(ctx, "main", "ghost"); err == nil {
+		t.Error("rebuild of unknown resource should error")
+	}
+	if err := eng.Trigger(ctx, "nosuch", "setup"); err == nil {
+		t.Error("trigger on unknown worktree should error")
+	}
+}
+
+func TestEngineLogsReturnsBufferedLines(t *testing.T) {
+	eng, logs, _ := testEngine(t)
+	if err := eng.Register(wt(), demoStack()); err != nil {
+		t.Fatal(err)
+	}
+	mk := func() logbuf.Line { return logbuf.Line{Time: time.Unix(1, 0)} }
+	logs.Append("main", "setup", logbuf.Stdout, "line-one", mk)
+	logs.Append("main", "setup", logbuf.Stdout, "line-two", mk)
+
+	got, err := eng.Logs(context.Background(), api.LogQuery{Worktree: "main", Resource: "setup", Tail: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Text != "line-one" {
+		t.Errorf("logs = %+v", got)
+	}
+}
