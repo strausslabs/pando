@@ -1,0 +1,50 @@
+[
+  {
+    "worktree": "feat-login",
+    "branch": "feat/login",
+    "head": "def",
+    "resources": [
+      {
+        "name": "api",
+        "kind": "local",
+        "phase": "healthy",
+        "ready": true,
+        "port": 48425,
+        "memBytes": 3194880,
+        "cpuPercent": 0.35271797276453204
+      }
+    ]
+  },
+  {
+    "worktree": "main",
+    "branch": "main",
+    "head": "abc",
+    "resources": [
+      {
+        "name": "setup",
+        "kind": "task",
+        "phase": "done",
+        "ready": true,
+        "port": 34246
+      },
+      {
+        "name": "api",
+        "kind": "local",
+        "phase": "healthy",
+        "ready": true,
+        "port": 34225,
+        "memBytes": 3178496,
+        "cpuPercent": 0.37242858867563877
+      },
+      {
+        "name": "sync",
+        "kind": "task",
+        "phase": "done",
+        "ready": true,
+        "port": 34271,
+        "everySeconds": 30,
+        "nextRunUnix": 1781506937
+      }
+    ]
+  }
+]

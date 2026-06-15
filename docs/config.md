@@ -51,7 +51,6 @@ Wraps one resource. Exactly one of `local`, `task`, or `compose` should be set.
 | `onChange` | list[string] | Glob/paths that trigger a rerun when `runWhen = "onChange"`. Required in that mode. |
 | `every` | duration | Run periodically (e.g. `"30s"`). Implies `runWhen = "always"`. |
 | `shared` | bool | Bring up **once for the whole repo**, reused across worktrees. Shared resources may depend only on other shared resources. |
-| `preview` | bool | Mark as a preview-only resource. |
 | `liveUpdate` | list | In-place update steps; see [Live update](#live-update). |
 | `hooks` | dict | `{"postStart": "...", "preStop": "..."}` shell hooks. |
 

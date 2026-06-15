@@ -1,0 +1,10 @@
+[
+  {
+    "seq": 3,
+    "time": "2026-06-15T10:01:47.977503+03:00",
+    "worktree": "main",
+    "resource": "api",
+    "stream": "stdout",
+    "text": "api listening on 8080"
+  }
+]

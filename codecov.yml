@@ -2,12 +2,23 @@ coverage:
   status:
     project:
       default:
-        target: auto # ratchet: never drop more than threshold below the parent
+        target: auto
         threshold: 1%
     patch:
       default:
         target: 85%
         threshold: 0%
+
+flag_management:
+  default_rules:
+    carryforward: true
+  individual_flags:
+    - name: go
+      paths:
+        - "!ui/"
+    - name: ui
+      paths:
+        - "ui/src/"
 
 comment:
   layout: "reach, diff, flags, files"
@@ -19,3 +30,4 @@ ignore:
   - "cmd/pando"
   - "**/*_test.go"
   - "ui/node_modules"
+  - "ui/e2e"

@@ -40,8 +40,6 @@ type ResourceStatus struct {
 
 	EverySeconds int64 `json:"everySeconds,omitempty"`
 	NextRunUnix  int64 `json:"nextRunUnix,omitempty"`
-
-	Preview bool `json:"preview,omitempty"`
 }
 
 type WorktreeStatus struct {

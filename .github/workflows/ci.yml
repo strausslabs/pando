@@ -52,6 +52,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: coverage.out
+          flags: go
           slug: strausslabs/pando
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
@@ -90,4 +91,30 @@ jobs:
       - name: Lint
         run: bun run lint
       - name: Test
-        run: bun test
+        run: bun run test:cov
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ui/coverage/lcov.info
+          flags: ui
+          slug: strausslabs/pando
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  ui-e2e:
+    name: UI (e2e)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Install Playwright browser
+        run: bunx playwright install --with-deps chromium
+      - name: Run e2e
+        run: bunx playwright test

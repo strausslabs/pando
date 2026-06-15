@@ -1,0 +1,20 @@
+[
+  {
+    "kind": "phase",
+    "worktree": "main",
+    "resource": "api",
+    "phase": "starting"
+  },
+  {
+    "kind": "phase",
+    "worktree": "main",
+    "resource": "api",
+    "phase": "running"
+  },
+  {
+    "kind": "phase",
+    "worktree": "main",
+    "resource": "api",
+    "phase": "healthy"
+  }
+]

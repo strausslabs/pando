@@ -6,7 +6,6 @@ import { useLogStore } from "./useLogStore";
 import { bufferKey } from "./logbuffer";
 import { useHotkeys } from "./useHotkeys";
 import { LogView } from "./LogView";
-import { Preview } from "./Preview";
 import { Sidebar } from "./Sidebar";
 import { Tree, Mark } from "./Tree";
 import { Shortcuts } from "./Shortcuts";
@@ -26,7 +25,6 @@ export function App() {
   const [logQuery, setLogQuery] = useState("");
   const [hideDone, setHideDone] = useState(true);
   const [snap, setSnap] = useState(true);
-  const [showPreview, setShowPreview] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const [flashing, setFlashing] = useState<Set<string>>(() => new Set());
@@ -161,13 +159,6 @@ export function App() {
 
   const header = useMemo(() => describeTarget(effectiveTarget, stacks), [effectiveTarget, stacks]);
 
-  const previewUrl = useMemo(() => {
-    if (effectiveTarget?.kind !== "resource") return null;
-    const ws = stacks.find((s) => s.worktree === effectiveTarget.worktree);
-    const res = ws?.resources.find((r) => r.name === effectiveTarget.resource);
-    return res?.preview && res.port ? `http://localhost:${res.port}` : null;
-  }, [effectiveTarget, stacks]);
-
   return (
     <div className="app">
       <header className="masthead">
@@ -214,16 +205,6 @@ export function App() {
               <span className="canopy-sub">{header.sub}</span>
             </div>
             <div className="canopy-tools">
-              {previewUrl ? (
-                <div className="view-toggle">
-                  <button className={showPreview ? "on" : ""} onClick={() => setShowPreview(true)}>
-                    preview
-                  </button>
-                  <button className={!showPreview ? "on" : ""} onClick={() => setShowPreview(false)}>
-                    logs
-                  </button>
-                </div>
-              ) : null}
               <button
                 className={`snap-btn ${snap ? "on" : ""}`}
                 onClick={() => setSnap((v) => !v)}
@@ -252,18 +233,14 @@ export function App() {
             </div>
           </div>
           {effectiveTarget ? (
-            previewUrl && showPreview ? (
-              <Preview url={previewUrl} />
-            ) : (
-              <LogView
-                lines={lines}
-                query={logQuery}
-                showResource={effectiveTarget.kind === "worktree"}
-                version={snapshot.version}
-                snap={snap}
-                onSnapChange={setSnap}
-              />
-            )
+            <LogView
+              lines={lines}
+              query={logQuery}
+              showResource={effectiveTarget.kind === "worktree"}
+              version={snapshot.version}
+              snap={snap}
+              onSnapChange={setSnap}
+            />
           ) : (
             <div className="empty">
               <Tree />

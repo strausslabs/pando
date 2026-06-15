@@ -178,7 +178,7 @@ duration("30s")  bytes("256m")        # explicit coercion; strings also work inl
 ```
 
 `service(local=|task=|compose=, build?, deps?, ready?, runWhen?, onChange?,
-every?, shared?, preview?, liveUpdate?, hooks?)`
+every?, shared?, liveUpdate?, hooks?)`
 
 - `runWhen`: `"once"` | `"always"` | `"onChange"` | `"manual"`. `local`/`compose`
   default `always`; `task` defaults `once`. `onChange=[paths]` is required when

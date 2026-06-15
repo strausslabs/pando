@@ -7,7 +7,6 @@ define_stack(
         ),
         "web": service(
             local = cmd("bun run dev", cwd = "./web"),
-            preview = True,
         ),
         "cache": service(
             compose = compose(image = "redis:7", memory = bytes("256m")),

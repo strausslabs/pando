@@ -19,7 +19,6 @@ export interface ResourceStatus {
   kind: string;
   phase: Phase;
   ready: boolean;
-  preview?: boolean;
   port?: number;
   error?: string;
   memBytes?: number;
