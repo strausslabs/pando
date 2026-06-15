@@ -10,15 +10,21 @@ import (
 
 	"github.com/guyStrauss/pando/internal/api"
 	"github.com/guyStrauss/pando/internal/logbuf"
+	"github.com/guyStrauss/pando/internal/selfupdate"
 )
 
 type fakeOps struct {
-	upCalled    bool
-	upForce     bool
-	upWorktree  string
-	execResult  api.ExecResult
-	statusErr   error
-	lastExecReq api.ExecRequest
+	upCalled     bool
+	upForce      bool
+	upWorktree   string
+	execResult   api.ExecResult
+	statusErr    error
+	worktreesErr error
+	upErr        error
+	downErr      error
+	actionErr    error
+	execErr      error
+	lastExecReq  api.ExecRequest
 }
 
 func (f *fakeOps) Status(context.Context) ([]api.WorktreeStatus, error) {
@@ -32,17 +38,20 @@ func (f *fakeOps) Logs(context.Context, api.LogQuery) ([]api.LogLine, error) {
 }
 func (f *fakeOps) Exec(_ context.Context, req api.ExecRequest) (api.ExecResult, error) {
 	f.lastExecReq = req
-	return f.execResult, nil
+	return f.execResult, f.execErr
 }
 func (f *fakeOps) Up(_ context.Context, wt string, force bool) error {
 	f.upCalled, f.upWorktree, f.upForce = true, wt, force
-	return nil
+	return f.upErr
 }
-func (f *fakeOps) Down(context.Context, string) error            { return nil }
-func (f *fakeOps) Restart(context.Context, string, string) error { return nil }
-func (f *fakeOps) Rebuild(context.Context, string, string) error { return nil }
-func (f *fakeOps) Trigger(context.Context, string, string) error { return nil }
+func (f *fakeOps) Down(context.Context, string) error            { return f.downErr }
+func (f *fakeOps) Restart(context.Context, string, string) error { return f.actionErr }
+func (f *fakeOps) Rebuild(context.Context, string, string) error { return f.actionErr }
+func (f *fakeOps) Trigger(context.Context, string, string) error { return f.actionErr }
 func (f *fakeOps) ListWorktrees(context.Context) ([]api.WorktreeInfo, error) {
+	if f.worktreesErr != nil {
+		return nil, f.worktreesErr
+	}
 	return []api.WorktreeInfo{{Slug: "main", Branch: "main", Ports: map[string]int{"api": 8001}}}, nil
 }
 
@@ -138,5 +147,144 @@ func TestStatusErrorPropagates(t *testing.T) {
 	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/status", nil))
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestVersionDefaultThenSet(t *testing.T) {
+	s, _ := testServer()
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/version", nil))
+	var st api.UpdateStatus
+	_ = json.Unmarshal(rec.Body.Bytes(), &st)
+	if st.Available || st.Current != "" {
+		t.Errorf("default version should be empty/unavailable, got %+v", st)
+	}
+
+	s.SetUpdate(selfupdate.Status{Current: "v1", Latest: "v2", Available: true})
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/version", nil))
+	_ = json.Unmarshal(rec.Body.Bytes(), &st)
+	if !st.Available || st.Current != "v1" || st.Latest != "v2" {
+		t.Errorf("after SetUpdate, got %+v", st)
+	}
+}
+
+func TestWorktreesEndpoint(t *testing.T) {
+	s, _ := testServer()
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/worktrees", nil))
+	if rec.Code != 200 {
+		t.Fatalf("worktrees code %d", rec.Code)
+	}
+	var got []api.WorktreeInfo
+	_ = json.Unmarshal(rec.Body.Bytes(), &got)
+	if len(got) != 1 || got[0].Slug != "main" {
+		t.Errorf("worktrees = %+v", got)
+	}
+}
+
+func TestWorktreesErrorPropagates(t *testing.T) {
+	s := NewServer(&fakeOps{worktreesErr: context.DeadlineExceeded}, nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/worktrees", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestDownEndpoint(t *testing.T) {
+	s, _ := testServer()
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("POST", "/down", strings.NewReader(`{"worktree":"x"}`)))
+	if rec.Code != 200 {
+		t.Errorf("down code %d", rec.Code)
+	}
+}
+
+func TestDownErrorPropagates(t *testing.T) {
+	s := NewServer(&fakeOps{downErr: context.DeadlineExceeded}, nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("POST", "/down", strings.NewReader(`{"worktree":"x"}`)))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestResourceActionsEndpoints(t *testing.T) {
+	for _, path := range []string{"/restart", "/rebuild", "/trigger"} {
+		t.Run(path, func(t *testing.T) {
+			s, _ := testServer()
+			rec := httptest.NewRecorder()
+			body := strings.NewReader(`{"worktree":"w","resource":"api"}`)
+			s.Handler().ServeHTTP(rec, httptest.NewRequest("POST", path, body))
+			if rec.Code != 200 {
+				t.Errorf("%s code %d", path, rec.Code)
+			}
+		})
+	}
+}
+
+func TestResourceActionErrorPropagates(t *testing.T) {
+	s := NewServer(&fakeOps{actionErr: context.DeadlineExceeded}, nil)
+	rec := httptest.NewRecorder()
+	body := strings.NewReader(`{"worktree":"w","resource":"api"}`)
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("POST", "/restart", body))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestExecErrorPropagates(t *testing.T) {
+	s := NewServer(&fakeOps{execErr: context.DeadlineExceeded}, nil)
+	rec := httptest.NewRecorder()
+	body := strings.NewReader(`{"worktree":"w","resource":"api","cmd":["ls"]}`)
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("POST", "/exec", body))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestUpErrorPropagates(t *testing.T) {
+	s := NewServer(&fakeOps{upErr: context.DeadlineExceeded}, nil)
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("POST", "/up", strings.NewReader(`{"worktree":"x"}`)))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("up error expected 500, got %d", rec.Code)
+	}
+}
+
+func TestMountUI(t *testing.T) {
+	s, _ := testServer()
+	s.MountUI(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("ui-root"))
+	}))
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+	if rec.Body.String() != "ui-root" {
+		t.Errorf("MountUI not serving root, got %q", rec.Body.String())
+	}
+}
+
+func TestLogsSinceAndBadTail(t *testing.T) {
+	s, _ := testServer()
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/logs?worktree=main&resource=api&since=30s&tail=abc", nil))
+	if rec.Code != 200 {
+		t.Fatalf("logs code %d", rec.Code)
+	}
+}
+
+func TestAtoiDefault(t *testing.T) {
+	if got := atoiDefault("50", 0); got != 50 {
+		t.Errorf("atoiDefault(50) = %d", got)
+	}
+	if got := atoiDefault("abc", 7); got != 7 {
+		t.Errorf("atoiDefault(abc) = %d, want default 7", got)
+	}
+	// Empty string has no non-digit to trip the default; the loop is skipped and
+	// the accumulator (0) is returned.
+	if got := atoiDefault("", 3); got != 0 {
+		t.Errorf("atoiDefault(empty) = %d, want 0", got)
 	}
 }
