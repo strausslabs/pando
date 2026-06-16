@@ -219,6 +219,46 @@ func TestSyncCreatesParentDirReal(t *testing.T) {
 	}
 }
 
+func TestBuildResolvesRelativeContextAgainstWorktreeDirReal(t *testing.T) {
+	ensureDocker(t)
+
+	// A worktree whose build context is the RELATIVE path "./svc". The build
+	// must resolve it against env.Dir (the worktree), not the daemon's cwd —
+	// otherwise two worktrees would build each other's sources.
+	worktree := t.TempDir()
+	svc := filepath.Join(worktree, "svc")
+	if err := os.MkdirAll(svc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, filepath.Join(svc, "Dockerfile"),
+		"FROM ghcr.io/linuxcontainers/alpine:3.20\nRUN echo from-worktree-context > /built.txt\nCMD [\"sleep\",\"3600\"]\n")
+
+	logs := logbuf.NewStore(1000)
+	b, err := New(logs, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := scheduler.Env{Worktree: "itest", Project: "pando-buildcwd-itest", Dir: worktree, Ports: map[string]int{}, Vars: map[string]string{}}
+	r := &resource.Resource{
+		Name: "svc", Kind: resource.KindCompose,
+		Build: &resource.Build{Context: "./svc"},
+	}
+	ctx := context.Background()
+
+	if err := b.Start(ctx, r, env, nopReporter{}); err != nil {
+		t.Fatalf("start (build with relative context): %v", err)
+	}
+	defer func() { _ = b.Stop(ctx, r, env) }()
+
+	got, err := b.Exec(ctx, "itest", "svc", []string{"cat", "/built.txt"}, env)
+	if err != nil {
+		t.Fatalf("exec: %v", err)
+	}
+	if !strings.Contains(got.Stdout, "from-worktree-context") {
+		t.Errorf("relative build context did not resolve against the worktree dir: %q", got.Stdout)
+	}
+}
+
 func mustWrite(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {

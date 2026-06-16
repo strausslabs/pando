@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -30,19 +31,25 @@ func scopeFromEnv(env scheduler.Env) interp.Scope {
 	return interp.Scope{Ports: env.Ports, Vars: env.Vars}
 }
 
-func command(ctx context.Context, raw, cwd string, extraEnv map[string]string, sc interp.Scope) (*exec.Cmd, error) {
+func command(ctx context.Context, raw, cwd, baseDir string, extraEnv map[string]string, sc interp.Scope) (*exec.Cmd, error) {
 	line, err := sc.Shell(raw)
 	if err != nil {
 		return nil, err
 	}
 	cmd := exec.CommandContext(ctx, "sh", "-c", line)
+	dir := baseDir
 	if cwd != "" {
 		resolved, err := sc.Shell(cwd)
 		if err != nil {
 			return nil, err
 		}
-		cmd.Dir = resolved
+		if filepath.IsAbs(resolved) || baseDir == "" {
+			dir = resolved
+		} else {
+			dir = filepath.Join(baseDir, resolved)
+		}
 	}
+	cmd.Dir = dir
 	envv := os.Environ()
 	for k, v := range extraEnv {
 		val, err := sc.Shell(v)
@@ -110,7 +117,7 @@ func (e *Engine) Start(ctx context.Context, r *resource.Resource, env scheduler.
 }
 
 func (e *Engine) startTask(ctx context.Context, r *resource.Resource, env scheduler.Env, rep scheduler.Reporter) error {
-	cmd, err := command(ctx, r.Task.Cmd, r.Task.Cwd, r.Task.Env, scopeFromEnv(env))
+	cmd, err := command(ctx, r.Task.Cmd, r.Task.Cwd, env.Dir, r.Task.Env, scopeFromEnv(env))
 	if err != nil {
 		return err
 	}
@@ -136,7 +143,7 @@ func (e *Engine) startLocal(ctx context.Context, r *resource.Resource, env sched
 	e.stopOne(env.Worktree, r.Name)
 
 	procCtx, cancel := context.WithCancel(context.Background())
-	cmd, err := command(procCtx, r.Local.Cmd, r.Local.Cwd, r.Local.Env, scopeFromEnv(env))
+	cmd, err := command(procCtx, r.Local.Cmd, r.Local.Cwd, env.Dir, r.Local.Env, scopeFromEnv(env))
 	if err != nil {
 		cancel()
 		return err

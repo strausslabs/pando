@@ -148,6 +148,7 @@ func (e *Engine) compile(info api.WorktreeInfo, stack *resource.Stack) (*activeS
 	env := scheduler.Env{
 		Worktree: info.Slug,
 		Project:  worktree.ProjectName(e.cfg.StackName, info.Slug),
+		Dir:      info.Path,
 		Ports:    ports,
 		Vars:     map[string]string{},
 	}

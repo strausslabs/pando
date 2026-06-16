@@ -23,7 +23,7 @@ func TestReloadRerunsOnlyChanged(t *testing.T) {
 		localR("a", "echo A-v1; sleep 30"),
 		localR("b", "echo B-v1; sleep 30", "a"),
 	)
-	if err := eng.Register(wt(), first); err != nil {
+	if err := eng.Register(mainWorktree(t), first); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
@@ -65,7 +65,7 @@ func TestReloadStopsRemovedResource(t *testing.T) {
 		localR("a", "sleep 30"),
 		localR("b", "sleep 30"),
 	)
-	_ = eng.Register(wt(), first)
+	_ = eng.Register(mainWorktree(t), first)
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -84,7 +84,7 @@ func TestReloadStopsRemovedResource(t *testing.T) {
 
 func TestReloadAddsNewResource(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	_ = eng.Register(wt(), stackWith(localR("a", "sleep 30")))
+	_ = eng.Register(mainWorktree(t), stackWith(localR("a", "sleep 30")))
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -111,7 +111,7 @@ func TestReloadAddsNewResource(t *testing.T) {
 func TestReloadNoChangeIsNoop(t *testing.T) {
 	eng, logs, _ := testEngine(t)
 	s := stackWith(localR("a", "echo A; sleep 30"))
-	_ = eng.Register(wt(), s)
+	_ = eng.Register(mainWorktree(t), s)
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -131,7 +131,7 @@ func TestReloadNoChangeIsNoop(t *testing.T) {
 
 func TestDeregisterStopsAndForgets(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	_ = eng.Register(wt(), stackWith(localR("a", "sleep 30")))
+	_ = eng.Register(mainWorktree(t), stackWith(localR("a", "sleep 30")))
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	if !eng.Registered("main") {
@@ -158,7 +158,7 @@ func TestReloadUnknownWorktreeErrors(t *testing.T) {
 
 func TestReloadKeepsSharedHoistedAndOutOfWorktree(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	if err := eng.Register(wt(), sharedStack()); err != nil {
+	if err := eng.Register(mainWorktree(t), sharedStack()); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
@@ -217,8 +217,8 @@ func TestConfigErrorSurfacesForUnregisteredWorktree(t *testing.T) {
 func TestConfigErrorIsScopedToWorktree(t *testing.T) {
 	eng, _, _ := testEngine(t)
 	ctx := context.Background()
-	_ = eng.Register(wt(), stackWith(localR("api", "sleep 30")))  // main, healthy
-	_ = eng.Register(wt2(), stackWith(localR("api", "sleep 30"))) // feat, healthy
+	_ = eng.Register(mainWorktree(t), stackWith(localR("api", "sleep 30")))    // main, healthy
+	_ = eng.Register(featureWorktree(t), stackWith(localR("api", "sleep 30"))) // feat, healthy
 	_ = eng.Up(ctx, "main", false)
 	_ = eng.Up(ctx, "feat", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -264,7 +264,7 @@ func TestConfigErrorClearedOnRecovery(t *testing.T) {
 
 func TestConfigErrorOnRegisteredWorktreeKeepsResources(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	_ = eng.Register(wt(), stackWith(localR("api", "sleep 30")))
+	_ = eng.Register(mainWorktree(t), stackWith(localR("api", "sleep 30")))
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -283,7 +283,7 @@ func TestConfigErrorOnRegisteredWorktreeKeepsResources(t *testing.T) {
 
 func TestReloadAddingSharedDepValidates(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	_ = eng.Register(wt(), stackWith(localR("api", "sleep 30")))
+	_ = eng.Register(mainWorktree(t), stackWith(localR("api", "sleep 30")))
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()

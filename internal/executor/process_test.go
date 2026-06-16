@@ -2,6 +2,8 @@ package executor
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +94,77 @@ func TestTaskInterpolatesPortAndEnv(t *testing.T) {
 	}
 	if !strings.Contains(out, "env=hi-8042") {
 		t.Errorf("port not interpolated in env: %q", out)
+	}
+}
+
+func TestTaskRunsInWorktreeDirByDefault(t *testing.T) {
+	e, store := newTestEngine()
+	dir := t.TempDir()
+	r := taskRes("pwd", "pwd")
+	env := scheduler.Env{Worktree: "main", Dir: dir}
+	if err := e.Start(context.Background(), r, env, &nopReporter{}); err != nil {
+		t.Fatal(err)
+	}
+	out := strings.TrimSpace(collectText(store, "main", "pwd"))
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	if !strings.Contains(out, dir) {
+		t.Errorf("task with no cwd should run in the worktree dir %q, ran in %q", dir, out)
+	}
+}
+
+func TestTaskExplicitRelativeCwdJoinsWorktree(t *testing.T) {
+	e, store := newTestEngine()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "api"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r := taskRes("pwd", "pwd")
+	r.Task.Cwd = "api"
+	env := scheduler.Env{Worktree: "main", Dir: dir}
+	if err := e.Start(context.Background(), r, env, &nopReporter{}); err != nil {
+		t.Fatal(err)
+	}
+	out := strings.TrimSpace(collectText(store, "main", "pwd"))
+	if !strings.HasSuffix(out, "/api") {
+		t.Errorf("relative cwd should join onto the worktree dir, ran in %q", out)
+	}
+}
+
+func TestTaskAbsoluteCwdWins(t *testing.T) {
+	e, store := newTestEngine()
+	worktree := t.TempDir()
+	abs := t.TempDir()
+	r := taskRes("pwd", "pwd")
+	r.Task.Cwd = abs
+	env := scheduler.Env{Worktree: "main", Dir: worktree}
+	if err := e.Start(context.Background(), r, env, &nopReporter{}); err != nil {
+		t.Fatal(err)
+	}
+	out := strings.TrimSpace(collectText(store, "main", "pwd"))
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = resolved
+	}
+	if !strings.Contains(out, abs) {
+		t.Errorf("absolute cwd should win over the worktree dir, ran in %q", out)
+	}
+}
+
+func TestTwoWorktreesRunInTheirOwnDirs(t *testing.T) {
+	e, store := newTestEngine()
+	mainDir, featDir := t.TempDir(), t.TempDir()
+	r := taskRes("pwd", "pwd")
+	if err := e.Start(context.Background(), r, scheduler.Env{Worktree: "main", Dir: mainDir}, &nopReporter{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Start(context.Background(), r, scheduler.Env{Worktree: "feature", Dir: featDir}, &nopReporter{}); err != nil {
+		t.Fatal(err)
+	}
+	mainOut := strings.TrimSpace(collectText(store, "main", "pwd"))
+	featOut := strings.TrimSpace(collectText(store, "feature", "pwd"))
+	if mainOut == featOut {
+		t.Fatalf("two worktrees must run in different dirs, both ran in %q", mainOut)
 	}
 }
 
