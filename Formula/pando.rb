@@ -1,23 +1,23 @@
 class Pando < Formula
   desc "Fast multi-worktree dev environments"
   homepage "https://github.com/strausslabs/pando"
-  version "0.1.9"
+  version "0.1.10"
 
   on_macos do
     on_arm do
-      url "https://github.com/strausslabs/pando/releases/download/v0.1.9/pando-darwin-arm64.tar.gz"
-      sha256 "55e7d8a9a48b9c998924241f64c6e984d3623c5487193a46132f620597dbd6ca"
+      url "https://github.com/strausslabs/pando/releases/download/v0.1.10/pando-darwin-arm64.tar.gz"
+      sha256 "14bb40ad8ccf148e93d040bb3a343ec7cb0c710a285cb97f0730bfd092ee317c"
     end
   end
 
   on_linux do
     on_intel do
-      url "https://github.com/strausslabs/pando/releases/download/v0.1.9/pando-linux-amd64.tar.gz"
-      sha256 "e513fd7ef4774dc866b80706cc09bfdcc8afb762eb2e6fbfbd215354f2079dfd"
+      url "https://github.com/strausslabs/pando/releases/download/v0.1.10/pando-linux-amd64.tar.gz"
+      sha256 "c8ebcbdcafbcb892aade2c92bed21e10972afdb0824ce48663e1499b84720328"
     end
     on_arm do
-      url "https://github.com/strausslabs/pando/releases/download/v0.1.9/pando-linux-arm64.tar.gz"
-      sha256 "29292396b67eaa3499163b5e15b775b9ba75fbd880f711dda7eac2c20ef6f852"
+      url "https://github.com/strausslabs/pando/releases/download/v0.1.10/pando-linux-arm64.tar.gz"
+      sha256 "5a5070bce7c46bbb880012623151bea742a7d1d90e6ab6de6819a5ce29cfa26b"
     end
   end
 
