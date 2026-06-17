@@ -112,6 +112,52 @@ func TestRegisterMCPGlobalInvokesClaudeWithUserScope(t *testing.T) {
 	}
 }
 
+func TestSetupCmdRunsBothSteps(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	script := "#!/bin/sh\necho \"$*\" > " + argsFile + "\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(dir, "claude"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	t.Chdir(t.TempDir())
+
+	cmd := setupCmd(&globalFlags{})
+	withSkillURL(serveSkill(t, "skill\n"), func() {
+		cmd.SetArgs(nil)
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if _, err := os.Stat(filepath.Join(".claude", "skills", "pando-star", "SKILL.md")); err != nil {
+		t.Errorf("setup should install the skill locally: %v", err)
+	}
+	if _, err := os.Stat(argsFile); err != nil {
+		t.Errorf("setup should register the MCP server: %v", err)
+	}
+}
+
+func TestSetupCmdHonorsSkipFlags(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := setupCmd(&globalFlags{})
+	cmd.SetArgs([]string{"--no-skill", "--no-mcp"})
+	out := captureStdout(t, func() {
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if _, err := os.Stat(".claude"); !os.IsNotExist(err) {
+		t.Error("--no-skill must not write the skill")
+	}
+	if strings.Contains(out, "claude mcp add") {
+		t.Errorf("--no-mcp must not attempt registration:\n%s", out)
+	}
+}
+
 func fakeClaudeArgs(t *testing.T, self string, global bool) string {
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")
