@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,7 @@ import (
 var skillURL = "https://raw.githubusercontent.com/strausslabs/pando/main/docs/pando-star-skill/SKILL.md"
 
 func setupCmd(g *globalFlags) *cobra.Command {
-	var skipMCP, skipSkill bool
+	var skipMCP, skipSkill, global bool
 	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Install the pando.star skill and register the MCP server for AI agents",
@@ -26,31 +27,36 @@ func setupCmd(g *globalFlags) *cobra.Command {
 				return err
 			}
 			if !skipSkill {
-				if err := installSkill(c.Context()); err != nil {
+				if err := installSkill(c.Context(), global); err != nil {
 					return err
 				}
 			}
 			if !skipMCP {
-				registerMCP(self)
+				registerMCP(self, global)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&skipMCP, "no-mcp", false, "don't register the MCP server")
 	cmd.Flags().BoolVar(&skipSkill, "no-skill", false, "don't install the pando.star skill")
+	cmd.Flags().BoolVar(&global, "global", false, "install for every project (~/.claude + claude user scope) instead of just this one")
 	return cmd
 }
 
-func installSkill(ctx context.Context) error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
+func installSkill(ctx context.Context, global bool) error {
+	base := ".claude"
+	if global {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		base = filepath.Join(home, ".claude")
 	}
 	doc, err := fetchSkill(ctx)
 	if err != nil {
 		return fmt.Errorf("download skill: %w", err)
 	}
-	dir := filepath.Join(home, ".claude", "skills", "pando-star")
+	dir := filepath.Join(base, "skills", "pando-star")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -79,18 +85,25 @@ func fetchSkill(ctx context.Context) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func registerMCP(self string) {
+func registerMCP(self string, global bool) {
+	args := []string{"mcp", "add", "pando"}
+	if global {
+		args = append(args, "--scope", "user")
+	}
+	args = append(args, "--", self, "mcp")
+	manual := "claude " + strings.Join(args, " ")
+
 	claude, err := exec.LookPath("claude")
 	if err != nil {
 		fmt.Println("claude CLI not found; register the MCP server yourself with:")
-		fmt.Printf("  claude mcp add pando -- %s mcp\n", self)
+		fmt.Printf("  %s\n", manual)
 		return
 	}
-	cmd := exec.Command(claude, "mcp", "add", "pando", "--", self, "mcp")
+	cmd := exec.Command(claude, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("could not register MCP automatically; run: claude mcp add pando -- %s mcp\n", self)
+		fmt.Printf("could not register MCP automatically; run: %s\n", manual)
 		return
 	}
 	fmt.Println("registered MCP server 'pando'")
