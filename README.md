@@ -68,8 +68,10 @@ go install github.com/strausslabs/pando/cmd/pando@latest
 ```
 
 `pando setup` is for agent users: it drops the `pando.star` authoring skill into
-`~/.claude/skills/` and runs `claude mcp add pando -- pando mcp`. Skip it if you
-don't drive Pando with an AI agent.
+`./.claude/skills/` and runs `claude mcp add pando -- pando mcp` for this project.
+Add `--global` to install into `~/.claude/skills/` and register the MCP server at
+`--scope user` instead, so every project picks it up. Skip it if you don't drive
+Pando with an AI agent.
 
 ## Quick start
 
