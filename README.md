@@ -57,7 +57,8 @@ resources (a database, say) that come up once and are reused across branches.
 ```sh
 brew tap strausslabs/pando https://github.com/strausslabs/pando
 brew install strausslabs/pando/pando
-pando setup   # optional: install the pando.star skill + register the MCP server
+pando setup            # this project (default)
+pando setup --global   # every project on this machine
 ```
 
 Or grab a static binary from [releases](https://github.com/strausslabs/pando/releases)
@@ -67,11 +68,17 @@ Or grab a static binary from [releases](https://github.com/strausslabs/pando/rel
 go install github.com/strausslabs/pando/cmd/pando@latest
 ```
 
-`pando setup` is for agent users: it drops the `pando.star` authoring skill into
-`./.claude/skills/` and runs `claude mcp add pando -- pando mcp` for this project.
-Add `--global` to install into `~/.claude/skills/` and register the MCP server at
-`--scope user` instead, so every project picks it up. Skip it if you don't drive
-Pando with an AI agent.
+`pando setup` is for agent users: it installs the `pando.star` authoring skill and
+registers the MCP server. Skip it if you don't drive Pando with an AI agent. The
+scope decides where both land:
+
+| | skill | MCP server |
+|---|---|---|
+| **`pando setup`** (local, default) | `./.claude/skills/` | `claude mcp add pando` (this project) |
+| **`pando setup --global`** | `~/.claude/skills/` | `claude mcp add pando --scope user` (every project) |
+
+Local keeps the install scoped to the current checkout; `--global` makes every
+project on the machine pick up the skill and MCP server.
 
 ## Quick start
 
