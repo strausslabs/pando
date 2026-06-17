@@ -21,6 +21,7 @@ func (b *Backend) build(ctx context.Context, r *resource.Resource, env scheduler
 		return err
 	}
 	cmd := exec.CommandContext(ctx, b.docker, args...)
+	cmd.Dir = env.Dir
 	cmd.Env = buildEnv()
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

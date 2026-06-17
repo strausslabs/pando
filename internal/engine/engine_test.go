@@ -48,12 +48,30 @@ func demoStack() *resource.Stack {
 	}}
 }
 
-func wt() worktree.Worktree {
-	return worktree.Worktree{Path: "/tmp/demo", Branch: "main", Slug: "main"}
+func mainWorktree(t *testing.T) worktree.Worktree {
+	return worktree.Worktree{Path: t.TempDir(), Branch: "main", Slug: "main"}
 }
 
-func wt2() worktree.Worktree {
-	return worktree.Worktree{Path: "/tmp/demo2", Branch: "feat", Slug: "feat"}
+func TestRegisterSetsEnvDirToWorktreePath(t *testing.T) {
+	eng, _, _ := testEngine(t)
+	if err := eng.Register(worktree.Worktree{Path: "/tmp/wt-a", Branch: "main", Slug: "main"}, demoStack()); err != nil {
+		t.Fatal(err)
+	}
+	if err := eng.Register(worktree.Worktree{Path: "/tmp/wt-b", Branch: "feat", Slug: "feat"}, demoStack()); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := eng.lookup("main")
+	b, _ := eng.lookup("feat")
+	if a.env.Dir != "/tmp/wt-a" {
+		t.Errorf("main env.Dir = %q, want its own worktree path", a.env.Dir)
+	}
+	if b.env.Dir != "/tmp/wt-b" {
+		t.Errorf("feat env.Dir = %q, want its own worktree path (not shared with main)", b.env.Dir)
+	}
+}
+
+func featureWorktree(t *testing.T) worktree.Worktree {
+	return worktree.Worktree{Path: t.TempDir(), Branch: "feat", Slug: "feat"}
 }
 
 // sharedStack has a daemon-level auth singleton plus a local api that depends on
@@ -90,7 +108,7 @@ func findWorktree(st []api.WorktreeStatus, slug string) api.WorktreeStatus {
 
 func TestEngineUpStatusDown(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	if err := eng.Register(wt(), demoStack()); err != nil {
+	if err := eng.Register(mainWorktree(t), demoStack()); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
@@ -120,7 +138,7 @@ func TestEngineUpStatusDown(t *testing.T) {
 
 func TestEngineRunOnceTaskSkipsSecondUp(t *testing.T) {
 	eng, logs, _ := testEngine(t)
-	_ = eng.Register(wt(), demoStack())
+	_ = eng.Register(mainWorktree(t), demoStack())
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	_ = eng.Down(ctx, "main")
@@ -137,7 +155,7 @@ func TestEngineRunOnceTaskSkipsSecondUp(t *testing.T) {
 
 func TestEngineForceRerunsOnceTask(t *testing.T) {
 	eng, logs, _ := testEngine(t)
-	_ = eng.Register(wt(), demoStack())
+	_ = eng.Register(mainWorktree(t), demoStack())
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	_ = eng.Down(ctx, "main")
@@ -153,7 +171,7 @@ func TestEngineForceRerunsOnceTask(t *testing.T) {
 
 func TestEngineRestartRerunsSkippedOnceTask(t *testing.T) {
 	eng, logs, _ := testEngine(t)
-	_ = eng.Register(wt(), demoStack())
+	_ = eng.Register(mainWorktree(t), demoStack())
 	ctx := context.Background()
 	if err := eng.Up(ctx, "main", false); err != nil {
 		t.Fatal(err)
@@ -180,7 +198,7 @@ func TestEngineRestartRerunsSkippedOnceTask(t *testing.T) {
 
 func TestEngineRestartUnknownResourceErrors(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	_ = eng.Register(wt(), demoStack())
+	_ = eng.Register(mainWorktree(t), demoStack())
 	if err := eng.Restart(context.Background(), "main", "ghost"); err == nil {
 		t.Error("restart of unknown resource should error")
 	}
@@ -188,7 +206,7 @@ func TestEngineRestartUnknownResourceErrors(t *testing.T) {
 
 func TestEngineLogsUnknownResourceErrors(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	_ = eng.Register(wt(), demoStack())
+	_ = eng.Register(mainWorktree(t), demoStack())
 	ctx := context.Background()
 
 	if _, err := eng.Logs(ctx, api.LogQuery{Worktree: "main", Resource: "ghost"}); err == nil {
@@ -213,7 +231,7 @@ func periodicStack(every time.Duration) *resource.Stack {
 
 func TestEnginePeriodicTaskReruns(t *testing.T) {
 	eng, logs, _ := testEngine(t)
-	_ = eng.Register(wt(), periodicStack(150*time.Millisecond))
+	_ = eng.Register(mainWorktree(t), periodicStack(150*time.Millisecond))
 	ctx := context.Background()
 	if err := eng.Up(ctx, "main", false); err != nil {
 		t.Fatal(err)
@@ -235,7 +253,7 @@ func TestEnginePeriodicTaskReruns(t *testing.T) {
 
 func TestEngineDownStopsPeriodicLoop(t *testing.T) {
 	eng, logs, _ := testEngine(t)
-	_ = eng.Register(wt(), periodicStack(80*time.Millisecond))
+	_ = eng.Register(mainWorktree(t), periodicStack(80*time.Millisecond))
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	if !waitForLine(logs, "main", "sync", "synced") {
@@ -252,7 +270,7 @@ func TestEngineDownStopsPeriodicLoop(t *testing.T) {
 
 func TestEngineStatusReportsPeriodicSchedule(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	_ = eng.Register(wt(), periodicStack(30*time.Minute))
+	_ = eng.Register(mainWorktree(t), periodicStack(30*time.Minute))
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -280,7 +298,7 @@ func TestEngineStatusReportsLocalMemory(t *testing.T) {
 	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{
 		{Name: "svc", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}},
 	}}
-	_ = eng.Register(wt(), stack)
+	_ = eng.Register(mainWorktree(t), stack)
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -294,7 +312,7 @@ func TestEngineStatusReportsLocalMemory(t *testing.T) {
 
 func TestEngineSharedResourceHoistedAndDependentRuns(t *testing.T) {
 	eng, logs, _ := testEngine(t)
-	if err := eng.Register(wt(), sharedStack()); err != nil {
+	if err := eng.Register(mainWorktree(t), sharedStack()); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
@@ -324,8 +342,8 @@ func TestEngineSharedResourceHoistedAndDependentRuns(t *testing.T) {
 
 func TestEngineSharedSingletonAcrossWorktrees(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	_ = eng.Register(wt(), sharedStack())
-	_ = eng.Register(wt2(), sharedStack())
+	_ = eng.Register(mainWorktree(t), sharedStack())
+	_ = eng.Register(featureWorktree(t), sharedStack())
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	_ = eng.Up(ctx, "feat", false)
@@ -358,7 +376,7 @@ func TestEngineSharedMayNotDependOnLocal(t *testing.T) {
 		{Name: "local-db", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}},
 		{Name: "auth", Kind: resource.KindTask, Task: &resource.TaskSpec{Cmd: "echo x"}, Shared: true, Deps: []string{"local-db"}},
 	}}
-	if err := eng.Register(wt(), bad); err == nil {
+	if err := eng.Register(mainWorktree(t), bad); err == nil {
 		t.Error("shared resource depending on a local resource should error")
 	}
 }
@@ -398,7 +416,7 @@ func TestRunLiveUpdateRunStepGatedByTrigger(t *testing.T) {
 			{Run: "echo rebuilt", Trigger: []string{"*.go"}},
 		},
 	}
-	_ = eng.Register(wt(), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
+	_ = eng.Register(mainWorktree(t), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -427,7 +445,7 @@ func TestRunLiveUpdateCapturesRunStderrOnSuccess(t *testing.T) {
 			{Run: "echo build-warning 1>&2"},
 		},
 	}
-	_ = eng.Register(wt(), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
+	_ = eng.Register(mainWorktree(t), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -459,7 +477,7 @@ func TestRunLiveUpdateRestartRerunsLocalProcess(t *testing.T) {
 		Local:      &resource.LocalSpec{Cmd: "echo booting; sleep 30"},
 		LiveUpdate: []resource.LiveUpdateStep{{RestartContainer: true}},
 	}
-	_ = eng.Register(wt(), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
+	_ = eng.Register(mainWorktree(t), &resource.Stack{Name: "pando", Resources: []*resource.Resource{r}})
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -487,7 +505,7 @@ func TestEnginePortsDeterministicAndExposed(t *testing.T) {
 	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{
 		{Name: "api", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}},
 	}}
-	_ = eng.Register(wt(), stack)
+	_ = eng.Register(mainWorktree(t), stack)
 	wts, _ := eng.ListWorktrees(context.Background())
 	if len(wts) != 1 {
 		t.Fatal("expected 1 worktree")
@@ -502,7 +520,7 @@ func TestEngineExecLocal(t *testing.T) {
 	stack := &resource.Stack{Name: "pando", Resources: []*resource.Resource{
 		{Name: "api", Kind: resource.KindLocal, Local: &resource.LocalSpec{Cmd: "sleep 30"}},
 	}}
-	_ = eng.Register(wt(), stack)
+	_ = eng.Register(mainWorktree(t), stack)
 	ctx := context.Background()
 	_ = eng.Up(ctx, "main", false)
 	defer func() { _ = eng.Down(ctx, "main") }()
@@ -551,10 +569,10 @@ func countLines(logs *logbuf.Store, wt, res, substr string) int {
 
 func TestEngineShutdownStopsAllWorktrees(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	if err := eng.Register(wt(), demoStack()); err != nil {
+	if err := eng.Register(mainWorktree(t), demoStack()); err != nil {
 		t.Fatal(err)
 	}
-	if err := eng.Register(wt2(), demoStack()); err != nil {
+	if err := eng.Register(featureWorktree(t), demoStack()); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
@@ -581,7 +599,7 @@ func TestEngineShutdownStopsAllWorktrees(t *testing.T) {
 
 func TestEngineRebuildAndTriggerDelegateToRestart(t *testing.T) {
 	eng, _, _ := testEngine(t)
-	if err := eng.Register(wt(), demoStack()); err != nil {
+	if err := eng.Register(mainWorktree(t), demoStack()); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
@@ -606,7 +624,7 @@ func TestEngineRebuildAndTriggerDelegateToRestart(t *testing.T) {
 
 func TestEngineLogsReturnsBufferedLines(t *testing.T) {
 	eng, logs, _ := testEngine(t)
-	if err := eng.Register(wt(), demoStack()); err != nil {
+	if err := eng.Register(mainWorktree(t), demoStack()); err != nil {
 		t.Fatal(err)
 	}
 	mk := func() logbuf.Line { return logbuf.Line{Time: time.Unix(1, 0)} }

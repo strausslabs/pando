@@ -65,6 +65,7 @@ type Restarter interface {
 type Env struct {
 	Worktree string
 	Project  string
+	Dir      string
 	Ports    map[string]int
 	Vars     map[string]string
 }
